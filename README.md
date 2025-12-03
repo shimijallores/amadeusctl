@@ -16,5 +16,5 @@ Ticket selling feature.
 
 Variation 1: FQD JFK LHR
 Variation 2: FQD JFK LHR R
-Variation 3: FQD JFK LHR 26NOV
+Variation 3: FQD JFK LHR 30NOV
 Variation 4: FQD JFK LHR R 25NOV
