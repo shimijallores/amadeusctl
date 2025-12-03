@@ -72,7 +72,7 @@ while true; do
     echo ""
     read -p "$(echo -e ${GREEN}"[$LOGGED_IN_USER] Enter command: "${NC})" flight_command param1 origin_code destination_code airline_iata
 
-    # Convert command to uppercase
+    # Search for flight schedules
     if [ "${flight_command^^}" = "AN" ]; then
 
         # Validate departure date format (MonthDD)
@@ -85,7 +85,6 @@ while true; do
         month_str=${param1:0:3}
         DAY=${param1:3:2}
 
-        # Use date command to parse and format the date
         if ! FORMATTED_DATE=$(date -d "${month_str} ${DAY} 2025" +%Y-%m-%d 2>/dev/null); then
             print_color $RED "Error: Invalid date. Please check the month abbreviation and day."
             continue
@@ -110,7 +109,6 @@ while true; do
 
         print_color $BLUE "Destination: $destination_name"
 
-        # Main query
         QUERY="
             SELECT 
                 fs.date_departure AS 'Date Departure',
@@ -142,6 +140,8 @@ while true; do
         if [ $(echo "$RESULT" | wc -l) -gt 1 ]; then
             LAST_QUERY_RESULT="$RESULT"
         fi
+        
+    # Select a flight schedule, class, and number of seats
     elif [[ "${flight_command^^}" =~ ^SS ]]; then
         if [ -z "$LAST_QUERY_RESULT" ]; then
             print_color $RED "No previous query results available."
@@ -189,9 +189,11 @@ while true; do
 
             print_color $GREEN "Seats selected. Please enter passenger details using NM$num_seats command."
         fi
+
+    # Add names for the passengers
     elif [[ "${flight_command^^}" =~ ^NM ]]; then
         if [ "$WAITING_FOR_NM" = true ]; then
-            # Extract number from NM command (e.g., NM1 -> 1)
+            # Extract number from NM command 
             if [[ $flight_command =~ ^NM([0-9]+)$ ]]; then
                 nm_num=${BASH_REMATCH[1]}
                 if [ "$nm_num" != "$SELECTED_NUM_SEATS" ]; then
@@ -203,7 +205,7 @@ while true; do
                 continue
             fi
 
-            passenger_input="$param1 $origin_code $destination_code $airline_iata"  # Collect remaining params as passenger input
+            passenger_input="$param1 $origin_code $destination_code $airline_iata"
             passengers=($passenger_input)
             if [ ${#passengers[@]} -ne $SELECTED_NUM_SEATS ]; then
                 print_color $RED "Number of passengers does not match the number of seats ($SELECTED_NUM_SEATS)."
@@ -254,7 +256,10 @@ while true; do
         else
             print_color $RED "No seat selection in progress. Use SS command first."
         fi
+
+    # Add contact information
     elif [ "${flight_command^^}" = "AP" ]; then
+        # Add agency number
         if [ "$WAITING_FOR_AGENCY" = true ]; then
             agency_number=$param1
             if [[ ! $agency_number =~ ^[0-9]+$ ]]; then
@@ -269,6 +274,7 @@ while true; do
                 WAITING_FOR_CUSTOMER=true
                 print_color $GREEN "Please enter customer number using AP command."
             fi
+        # Add customer/s number
         elif [ "$WAITING_FOR_CUSTOMER" = true ]; then
             customer_number=$param1
             if [[ ! $customer_number =~ ^[0-9]+$ ]]; then
@@ -290,6 +296,7 @@ while true; do
         else
             print_color $RED "No booking in progress. Complete NM and agency steps first."
         fi
+    # Logout the user
     elif [ "${flight_command^^}" = "QUIT" ]; then
         print_color $GREEN "Logged out successfully."
         LOGGED_IN_USER=""
