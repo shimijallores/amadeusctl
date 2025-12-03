@@ -68,6 +68,7 @@ while true; do
     echo -e "  ${WHITE}SS<row><class><seats>${NC} - Select seats"
     echo -e "  ${WHITE}NM<num> <passengers>${NC} - Enter passenger details (after SS)"
     echo -e "  ${WHITE}AP <number>${NC} - Enter agency/customer number (after NM)"
+    echo -e "  ${WHITE}FQD <origin> <dest> [R] [date]${NC} - Get flight quotation (R=roundtrip, date=DDMON)"
     echo -e "  ${WHITE}QUIT${NC} - Logout the current user"
     echo ""
     read -p "$(echo -e ${GREEN}"[$LOGGED_IN_USER] Enter command: "${NC})" flight_command param1 origin_code destination_code airline_iata
@@ -140,7 +141,7 @@ while true; do
         if [ $(echo "$RESULT" | wc -l) -gt 1 ]; then
             LAST_QUERY_RESULT="$RESULT"
         fi
-        
+
     # Select a flight schedule, class, and number of seats
     elif [[ "${flight_command^^}" =~ ^SS ]]; then
         if [ -z "$LAST_QUERY_RESULT" ]; then
@@ -296,6 +297,139 @@ while true; do
         else
             print_color $RED "No booking in progress. Complete NM and agency steps first."
         fi
+    # Flight quotation command
+    elif [ "${flight_command^^}" = "FQD" ]; then
+        fqd_origin="${param1^^}"
+        fqd_dest="${origin_code^^}"
+        fqd_param3="${destination_code^^}"
+        fqd_param4="${airline_iata^^}"
+
+        # Determine round_trip and date based on parameters
+        round_trip_value=0
+        fqd_date=""
+
+        # Check if param3 is "R" (roundtrip) or a date
+        if [ "$fqd_param3" = "R" ]; then
+            round_trip_value=1
+            # Check if param4 is a date
+            if [ -n "$fqd_param4" ]; then
+                fqd_date="$fqd_param4"
+            fi
+        elif [ -n "$fqd_param3" ]; then
+            # param3 is a date (one-way with date)
+            fqd_date="$fqd_param3"
+        fi
+
+        # Validate origin and destination
+        if [ -z "$fqd_origin" ] || [ -z "$fqd_dest" ]; then
+            print_color $RED "Error: FQD requires origin and destination IATA codes."
+            print_color $RED "Usage: FQD <origin> <dest> [R] [date]"
+            continue
+        fi
+
+        # Get origin airport ID
+        origin_id=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT id FROM airports WHERE iata = '$fqd_origin' LIMIT 1;")
+        if [ -z "$origin_id" ]; then
+            print_color $RED "Error: Origin airport '$fqd_origin' not found."
+            continue
+        fi
+
+        # Get destination airport ID
+        dest_id=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT id FROM airports WHERE iata = '$fqd_dest' LIMIT 1;")
+        if [ -z "$dest_id" ]; then
+            print_color $RED "Error: Destination airport '$fqd_dest' not found."
+            continue
+        fi
+
+        # Get airport names for display
+        origin_airport_name=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT airport_name FROM airports WHERE id = $origin_id;")
+        dest_airport_name=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT airport_name FROM airports WHERE id = $dest_id;")
+
+        print_color $BLUE "Origin: $origin_airport_name ($fqd_origin)"
+        print_color $BLUE "Destination: $dest_airport_name ($fqd_dest)"
+        if [ $round_trip_value -eq 1 ]; then
+            print_color $BLUE "Type: Round Trip"
+        else
+            print_color $BLUE "Type: One Way"
+        fi
+
+        # Build the query based on parameters
+        if [ -n "$fqd_date" ]; then
+            # Parse the date (format: DDMON e.g., 15DEC)
+            if [[ $fqd_date =~ ^([0-9]{2})([A-Za-z]{3})$ ]]; then
+                day_part=${BASH_REMATCH[1]}
+                month_part=${BASH_REMATCH[2]}
+                if ! FORMATTED_FQD_DATE=$(date -d "${month_part} ${day_part} 2025" +%Y-%m-%d 2>/dev/null); then
+                    print_color $RED "Error: Invalid date format. Use DDMON (e.g., 15DEC)."
+                    continue
+                fi
+                print_color $BLUE "Date: $FORMATTED_FQD_DATE"
+                
+                FQD_QUERY="
+                    SELECT 
+                        fs.id AS 'Flight ID',
+                        fs.date_departure AS 'Departure Date',
+                        fs.time_departure AS 'Departure Time',
+                        fs.date_arrival AS 'Arrival Date',
+                        fs.time_arrival AS 'Arrival Time',
+                        air.airline AS 'Airline',
+                        craft.model AS 'Aircraft',
+                        fs.status AS 'Status',
+                        fs.price_f AS 'First Class',
+                        fs.price_c AS 'Business',
+                        fs.price_y AS 'Economy'
+                    FROM flight_schedules fs
+                    JOIN flight_routes fr ON fs.flight_route_id = fr.id
+                    JOIN airlines air ON fr.airline_id = air.id
+                    JOIN aircraft craft ON fs.aircraft_id = craft.id
+                    WHERE fr.origin_airport_id = $origin_id
+                      AND fr.destination_airport_id = $dest_id
+                      AND fr.round_trip = $round_trip_value
+                      AND fs.date_departure = '$FORMATTED_FQD_DATE'
+                    ORDER BY RAND()
+                    LIMIT 1
+                "
+            else
+                print_color $RED "Error: Invalid date format. Use DDMON (e.g., 15DEC)."
+                continue
+            fi
+        else
+            # No date filter
+            FQD_QUERY="
+                SELECT 
+                    fs.id AS 'Flight ID',
+                    fs.date_departure AS 'Departure Date',
+                    fs.time_departure AS 'Departure Time',
+                    fs.date_arrival AS 'Arrival Date',
+                    fs.time_arrival AS 'Arrival Time',
+                    air.airline AS 'Airline',
+                    craft.model AS 'Aircraft',
+                    fs.status AS 'Status',
+                    fs.price_f AS 'First Class',
+                    fs.price_c AS 'Business',
+                    fs.price_y AS 'Economy'
+                FROM flight_schedules fs
+                JOIN flight_routes fr ON fs.flight_route_id = fr.id
+                JOIN airlines air ON fr.airline_id = air.id
+                JOIN aircraft craft ON fs.aircraft_id = craft.id
+                WHERE fr.origin_airport_id = $origin_id
+                  AND fr.destination_airport_id = $dest_id
+                  AND fr.round_trip = $round_trip_value
+                ORDER BY RAND()
+                LIMIT 1
+            "
+        fi
+
+        FQD_RESULT=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -e "$FQD_QUERY")
+
+        echo ""
+        if [ $(echo "$FQD_RESULT" | wc -l) -gt 1 ]; then
+            print_color $YELLOW "Flight Quotation:"
+            echo "$FQD_RESULT" | column -t -s $'\t'
+        else
+            print_color $RED "No flights found for the specified route and criteria."
+        fi
+
     # Logout the user
     elif [ "${flight_command^^}" = "QUIT" ]; then
         print_color $GREEN "Logged out successfully."
@@ -306,3 +440,8 @@ while true; do
     fi
     echo ""
 done
+
+
+
+
+
