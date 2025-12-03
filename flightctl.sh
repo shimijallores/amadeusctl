@@ -8,17 +8,20 @@ BLUE='\033[0;34m'
 MAGENTA='\033[0;35m'
 CYAN='\033[0;36m'
 WHITE='\033[1;37m'
-NC='\033[0m' # No Color
+NC='\033[0m' 
 
-MYSQL_PATH="/usr/bin/mysql" 
+# UPDATE THESE VARIABLES
+MYSQL_PATH="mysql"
 DATABASE_HOST=127.0.0.1
 DATABASE_PORT=3306
 DATABASE_USERNAME=root
 DATABASE_NAME=amadeus
-DATABASE_PASSWORD=shimishimi
+DATABASE_PASSWORD=
 
 LAST_QUERY_RESULT=""
 LAST_OCCUPIED_SEATS=""
+
+LOGGED_IN_USER=""
 
 # State variables for seat booking process
 WAITING_FOR_NM=false
@@ -44,6 +47,20 @@ print_header() {
 
 print_header
 
+# Login process
+while [ -z "$LOGGED_IN_USER" ]; do
+    read -p "Username: " username
+    read -s -p "Password: " password
+    echo ""
+    result=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT username FROM users WHERE username = '$username' AND password = '$password';")
+    if [ -n "$result" ]; then
+        LOGGED_IN_USER="$result"
+        print_color $GREEN "Login successful. Welcome, $LOGGED_IN_USER!"
+    else
+        print_color $RED "Invalid username or password."
+    fi
+done
+
 while true; do
     # Read user input
     echo -e "${YELLOW}Available commands:${NC}"
@@ -51,8 +68,9 @@ while true; do
     echo -e "  ${WHITE}SS<row><class><seats>${NC} - Select seats"
     echo -e "  ${WHITE}NM<num> <passengers>${NC} - Enter passenger details (after SS)"
     echo -e "  ${WHITE}AP <number>${NC} - Enter agency/customer number (after NM)"
+    echo -e "  ${WHITE}QUIT${NC} - Logout the current user"
     echo ""
-    read -p "$(echo -e ${GREEN}"Enter command: "${NC})" flight_command param1 origin_code destination_code airline_iata
+    read -p "$(echo -e ${GREEN}"[$LOGGED_IN_USER] Enter command: "${NC})" flight_command param1 origin_code destination_code airline_iata
 
     # Convert command to uppercase
     if [ "${flight_command^^}" = "AN" ]; then
@@ -272,6 +290,10 @@ while true; do
         else
             print_color $RED "No booking in progress. Complete NM and agency steps first."
         fi
+    elif [ "${flight_command^^}" = "QUIT" ]; then
+        print_color $GREEN "Logged out successfully."
+        LOGGED_IN_USER=""
+        break
     else
         print_color $RED "Unknown command!"
     fi
