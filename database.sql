@@ -150,6 +150,7 @@ CREATE TABLE IF NOT EXISTS `flight_schedules` (
   `airline_user_id` int NOT NULL,
   `flight_route_id` int NOT NULL,
   `aircraft_id` int DEFAULT NULL,
+  `carrier_code` varchar(50) DEFAULT NULL,
   `date_departure` varchar(50) NOT NULL,
   `time_departure` varchar(50) NOT NULL,
   `date_arrival` varchar(50) NOT NULL,
@@ -168,18 +169,18 @@ CREATE TABLE IF NOT EXISTS `flight_schedules` (
 ) ENGINE=InnoDB AUTO_INCREMENT=41 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- Dumping data for table amadeus.flight_schedules: ~11 rows (approximately)
-INSERT INTO `flight_schedules` (`id`, `airline_user_id`, `flight_route_id`, `aircraft_id`, `date_departure`, `time_departure`, `date_arrival`, `time_arrival`, `status`, `price_f`, `price_c`, `price_y`) VALUES
-	(1, 1, 1, 1, '2025-11-25', '08:00', '2025-11-25', '20:00', 'boarding', 3800.00, 1500.00, 400.00),
-	(2, 2, 3, 2, '2025-11-26', '10:00', '2025-11-27', '05:00', 'Scheduled', 0.00, 1800.00, 500.00),
-	(3, 5, 4, 3, '2025-11-28', '14:00', '2025-11-28', '22:00', 'Scheduled', 0.00, 0.00, 200.00),
-	(4, 3, 6, 4, '2025-11-29', '09:00', '2025-11-29', '16:00', 'Scheduled', 5000.00, 0.00, 0.00),
-	(5, 4, 5, 3, '2025-12-01', '07:00', '2025-12-01', '15:00', 'Delayed', 0.00, 0.00, 210.00),
-	(6, 1, 2, 1, '2025-12-02', '12:00', '2025-12-02', '23:00', 'Scheduled', 0.00, 1500.00, 400.00),
-	(7, 3, 7, 4, '2025-12-03', '18:00', '2025-12-04', '02:00', 'Scheduled', 5000.00, 0.00, 0.00),
-	(8, 2, 8, 5, '2025-12-05', '06:00', '2025-12-05', '14:00', 'Cancelled', 0.00, 800.00, 300.00),
-	(9, 1, 9, 2, '2025-12-06', '20:00', '2025-12-07', '10:00', 'Scheduled', 0.00, 1900.00, 550.00),
-	(10, 5, 10, 2, '2025-12-08', '11:00', '2025-12-09', '01:00', 'Scheduled', 0.00, 1800.00, 500.00),
-	(11, 1, 11, 1, '2025-11-26', '08:00', '2025-11-25', '20:00', 'boarding', 3800.00, 1500.00, 400.00);
+INSERT INTO `flight_schedules` (`id`, `airline_user_id`, `flight_route_id`, `aircraft_id`, `carrier_code`, `date_departure`, `time_departure`, `date_arrival`, `time_arrival`, `status`, `price_f`, `price_c`, `price_y`) VALUES
+	(1, 1, 1, 1, 'DLA01', '2025-11-25', '08:00', '2025-11-25', '20:00', 'boarding', 3800.00, 1500.00, 400.00),
+	(2, 2, 3, 2, 'DLA02', '2025-11-26', '10:00', '2025-11-27', '05:00', 'Scheduled', 0.00, 1800.00, 500.00),
+	(3, 5, 4, 3, NULL, '2025-11-28', '14:00', '2025-11-28', '22:00', 'Scheduled', 0.00, 0.00, 200.00),
+	(4, 3, 6, 4, NULL, '2025-11-29', '09:00', '2025-11-29', '16:00', 'Scheduled', 5000.00, 0.00, 0.00),
+	(5, 4, 5, 3, NULL, '2025-12-01', '07:00', '2025-12-01', '15:00', 'Delayed', 0.00, 0.00, 210.00),
+	(6, 1, 2, 1, 'DLA03', '2025-12-02', '12:00', '2025-12-02', '23:00', 'Scheduled', 0.00, 1500.00, 400.00),
+	(7, 3, 7, 4, NULL, '2025-12-03', '18:00', '2025-12-04', '02:00', 'Scheduled', 5000.00, 0.00, 0.00),
+	(8, 2, 8, 5, NULL, '2025-12-05', '06:00', '2025-12-05', '14:00', 'Cancelled', 0.00, 800.00, 300.00),
+	(9, 1, 9, 2, NULL, '2025-12-06', '20:00', '2025-12-07', '10:00', 'Scheduled', 0.00, 1900.00, 550.00),
+	(10, 5, 10, 2, NULL, '2025-12-08', '11:00', '2025-12-09', '01:00', 'Scheduled', 0.00, 1800.00, 500.00),
+	(11, 1, 11, 1, NULL, '2025-11-26', '08:00', '2025-11-25', '20:00', 'boarding', 3800.00, 1500.00, 400.00);
 
 -- Dumping structure for table amadeus.passengers
 CREATE TABLE IF NOT EXISTS `passengers` (
@@ -221,15 +222,15 @@ CREATE TABLE IF NOT EXISTS `seats` (
 -- Dumping data for table amadeus.seats: ~76 rows (approximately)
 INSERT INTO `seats` (`id`, `flight_schedule_id`, `aircraft_id`, `ticket_id`, `seat_no`, `class`, `status`, `price`, `is_paid`, `customer_name`, `customer_number`, `agency_number`) VALUES
 	(1, 1, 1, 'TKT-100', '1A', 'F', 'occupied', 500, 'unpaid', 'Shimi Jallores', '09289287057', '09561434976'),
-	(2, 1, 1, '9SIvMzLWge', '1B', 'F', 'occupied', NULL, 'unpaid', 'Jallores Shimi Mr', '09561434976', '09289287057'),
-	(3, 1, 1, NULL, '1C', 'F', 'occupied', 32000, 'unpaid', 'Estephanie Anne M. De Torres', '09289287057', '09561434976'),
-	(4, 1, 1, 'TKT-101', '2A', 'C', 'occupied', NULL, 'unpaid', NULL, NULL, NULL),
+	(2, 1, 1, '9SIvMzLWge', '1B', 'F', 'occupied', 500, 'paid', 'Jallores Shimi Mr', '09561434976', '09289287057'),
+	(3, 1, 1, 'TKT-101', '1C', 'F', 'occupied', 32000, 'unpaid', 'Estephanie Anne M. De Torres', '09289287057', '09561434976'),
+	(4, 1, 1, NULL, '2A', 'C', 'available', NULL, 'unpaid', NULL, NULL, NULL),
 	(5, 1, 1, 'TKT-102', '2B', 'C', 'occupied', NULL, 'unpaid', NULL, NULL, NULL),
 	(6, 1, 1, NULL, '2C', 'C', 'available', NULL, 'unpaid', NULL, NULL, NULL),
 	(7, 1, 1, NULL, '3A', 'C', 'available', NULL, 'unpaid', NULL, NULL, NULL),
 	(8, 1, 1, NULL, '3B', 'C', 'available', NULL, 'unpaid', NULL, NULL, NULL),
-	(9, 1, 1, NULL, '3C', 'C', 'occupied', 16000, 'unpaid', 'Dino Agito', '09289287057', '09561434976'),
-	(10, 1, 1, 'TKT-103', '4A', 'Y', 'occupied', NULL, 'unpaid', NULL, NULL, NULL),
+	(9, 1, 1, NULL, '3C', 'C', 'available', 16000, 'unpaid', 'a', NULL, NULL),
+	(10, 1, 1, NULL, '4A', 'Y', 'available', NULL, 'unpaid', NULL, NULL, NULL),
 	(11, 1, 1, 'TKT-104', '4B', 'Y', 'occupied', NULL, 'unpaid', NULL, NULL, NULL),
 	(12, 1, 1, 'TKT-105', '4C', 'Y', 'occupied', NULL, 'unpaid', NULL, NULL, NULL),
 	(13, 1, 1, NULL, '5A', 'Y', 'available', NULL, 'unpaid', NULL, NULL, NULL),

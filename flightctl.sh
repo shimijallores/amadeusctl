@@ -69,6 +69,8 @@ while true; do
     echo -e "  ${WHITE}FQD <origin> <dest> [R] [date]${NC} - Get flight quotation (R=roundtrip, date=DDMON)"
     echo -e "  ${WHITE}TKV <ticket id>${NC} - Void (cancel) an unpaid ticket by ticket id"
     echo -e "  ${WHITE}RFND <ticket id>${NC} - Refund a paid ticket by ticket id"
+    echo -e "  ${WHITE}DS <carrier_code> <date>${NC} - Show passenger list for a flight (date: DDMON, e.g., 15JUN)"
+        
     echo -e "  ${WHITE}QUIT${NC} - Logout the current user"
     echo ""
     read -p "$(echo -e ${GREEN}"[$LOGGED_IN_USER] Enter command: "${NC})" flight_command param1 origin_code destination_code airline_iata
@@ -493,6 +495,42 @@ while true; do
         fi
         $MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -e "UPDATE seats SET status='available', customer_name=NULL, customer_number=NULL, agency_number=NULL, ticket_id=NULL, is_paid='unpaid', price=NULL WHERE id=$seat_id;"
         print_color $GREEN "₱$seat_price has been succesfully refunded to $seat_cust with a ticket of $rfnd_ticket_id"
+
+    # Passenger List command
+    elif [ "${flight_command^^}" = "DS" ]; then
+        ds_carrier_code="$param1"
+        ds_date="$origin_code"
+        if [ -z "$ds_carrier_code" ] || [ -z "$ds_date" ]; then
+            print_color $RED "Usage: DS <carrier_code> <date>"
+            continue
+        fi
+        # Parse date (DDMON to YYYY-MM-DD)
+        if [[ $ds_date =~ ^([0-9]{2})([A-Za-z]{3})$ ]]; then
+            ds_day=${BASH_REMATCH[1]}
+            ds_month=${BASH_REMATCH[2]}
+            if ! ds_formatted_date=$(date -d "${ds_month} ${ds_day} 2025" +%Y-%m-%d 2>/dev/null); then
+                print_color $RED "Invalid date format. Use DDMON (e.g., 15JUN)."
+                continue
+            fi
+        else
+            print_color $RED "Invalid date format. Use DDMON (e.g., 15JUN)."
+            continue
+        fi
+        # Find flight_schedule id
+        ds_flight_id=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT id FROM flight_schedules WHERE carrier_code = '$ds_carrier_code' AND date_departure = '$ds_formatted_date' LIMIT 1;")
+        if [ -z "$ds_flight_id" ]; then
+            print_color $RED "No flight found for carrier $ds_carrier_code on $ds_formatted_date."
+            continue
+        fi
+        # Fetch passenger names
+        ds_passengers=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT customer_name FROM seats WHERE flight_schedule_id = $ds_flight_id AND customer_name IS NOT NULL;")
+        if [ -z "$ds_passengers" ]; then
+            print_color $YELLOW "No passengers found for this flight."
+        else
+            print_color $CYAN "Passenger List for $ds_carrier_code on $ds_date:"
+            echo "$ds_passengers"
+        fi
+
     # Logout the user
     elif [ "${flight_command^^}" = "QUIT" ]; then
         print_color $GREEN "Logged out successfully."
