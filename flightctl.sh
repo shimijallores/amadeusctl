@@ -67,13 +67,13 @@ while true; do
     echo -e "  ${WHITE}NM<num> <passengers>${NC} - Enter passenger details (after SS)"
     echo -e "  ${WHITE}AP <number>${NC} - Enter agency/customer number (after NM)"
     echo -e "  ${WHITE}FQD <origin> <dest> [R] [date]${NC} - Get flight quotation (R=roundtrip, date=DDMON)"
+    echo -e "  ${WHITE}TKV <ticket id>${NC} - Void (cancel) an unpaid ticket by ticket id"
     echo -e "  ${WHITE}QUIT${NC} - Logout the current user"
     echo ""
     read -p "$(echo -e ${GREEN}"[$LOGGED_IN_USER] Enter command: "${NC})" flight_command param1 origin_code destination_code airline_iata
 
     # Search for flight schedules
     if [ "${flight_command^^}" = "AN" ]; then
-
         # Validate departure date format (MonthDD)
         if [[ ! $param1 =~ ^[A-Za-z]{3}[0-9]{2}$ ]]; then
             print_color $RED "Error: Departure date must be in MonthDD format (e.g., Oct10 for October 10)."
@@ -140,7 +140,7 @@ while true; do
             LAST_QUERY_RESULT="$RESULT"
         fi
 
-    # Select a flight schedule, class, and number of seats
+    # Select flight, class, and buy plane seat
     elif [[ "${flight_command^^}" =~ ^SS ]]; then
         if [ -z "$LAST_QUERY_RESULT" ]; then
             print_color $RED "No previous query results available."
@@ -427,7 +427,39 @@ while true; do
         else
             print_color $RED "No flights found for the specified route and criteria."
         fi
-
+    
+    # Void Ticket command
+    elif [ "${flight_command^^}" = "TKV" ]; then
+        tkv_ticket_id="$param1"
+        if [ -z "$tkv_ticket_id" ]; then
+            print_color $RED "Error: TKV requires a ticket id."
+            continue
+        fi
+        # Check if ticket exists and is unpaid
+        seat_row=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT id, status, is_paid FROM seats WHERE ticket_id = '$tkv_ticket_id' LIMIT 1;")
+        if [ -z "$seat_row" ]; then
+            print_color $RED "Ticket ID not found."
+            continue
+        fi
+        seat_id=$(echo "$seat_row" | awk '{print $1}')
+        seat_status=$(echo "$seat_row" | awk '{print $2}')
+        seat_paid=$(echo "$seat_row" | awk '{print $3}')
+        if [ "$seat_status" != "occupied" ]; then
+            print_color $RED "Ticket is not currently booked."
+            continue
+        fi
+        if [ "$seat_paid" = "paid" ]; then
+            print_color $RED "Ticket has already been paid and cannot be voided."
+            continue
+        fi
+        read -p "TKV[$tkv_ticket_id] confirm cancellation? [y/N]: " tkv_confirm
+        if [[ ! "$tkv_confirm" =~ ^[Yy]$ ]]; then
+            print_color $YELLOW "Cancellation aborted."
+            continue
+        fi
+        $MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -e "UPDATE seats SET status='available', customer_name=NULL, customer_number=NULL, agency_number=NULL, ticket_id=NULL, is_paid='unpaid' WHERE id=$seat_id;"
+        print_color $GREEN "Ticket $tkv_ticket_id has been voided and seat is now available."
+        
     # Logout the user
     elif [ "${flight_command^^}" = "QUIT" ]; then
         print_color $GREEN "Logged out successfully."
