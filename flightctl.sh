@@ -23,7 +23,6 @@ LAST_OCCUPIED_SEATS=""
 
 LOGGED_IN_USER=""
 
-# State variables for seat booking process
 WAITING_FOR_NM=false
 WAITING_FOR_AGENCY=false
 WAITING_FOR_CUSTOMER=false
@@ -32,12 +31,12 @@ SELECTED_CLASS=""
 SELECTED_NUM_SEATS=""
 SELECTED_SEAT_IDS=""
 
-# Function to print colored text
+# Print colored text
 print_color() {
     echo -e "${1}${2}${NC}"
 }
 
-# Function to print header
+# Print header
 print_header() {
     echo -e "${CYAN}=======================================${NC}"
     echo -e "${CYAN}       Flight Control System${NC}"
@@ -47,7 +46,7 @@ print_header() {
 
 print_header
 
-# Login process
+# Login logic
 while [ -z "$LOGGED_IN_USER" ]; do
     read -p "Username: " username
     read -s -p "Password: " password
@@ -62,7 +61,6 @@ while [ -z "$LOGGED_IN_USER" ]; do
 done
 
 while true; do
-    # Read user input
     echo -e "${YELLOW}Available commands:${NC}"
     echo -e "  ${WHITE}AN <date> <origin> <dest> <airline>${NC} - Search flights (date format: MonthDD, e.g., Oct10)"
     echo -e "  ${WHITE}SS<row><class><seats>${NC} - Select seats"
