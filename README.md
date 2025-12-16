@@ -16,5 +16,7 @@ Simple Bash CLI for Amadeus-like GDS operations using MySQL.
   Get fare quote (date: DDMON, e.g., 15DEC)
 - `TKV <ticket id>`  
   Void (cancel) an unpaid ticket by ticket id
+- `RFND <ticket id>`  
+  Refund a paid ticket by ticket id
 - `QUIT`  
   Logout

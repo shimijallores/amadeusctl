@@ -68,6 +68,7 @@ while true; do
     echo -e "  ${WHITE}AP <number>${NC} - Enter agency/customer number (after NM)"
     echo -e "  ${WHITE}FQD <origin> <dest> [R] [date]${NC} - Get flight quotation (R=roundtrip, date=DDMON)"
     echo -e "  ${WHITE}TKV <ticket id>${NC} - Void (cancel) an unpaid ticket by ticket id"
+    echo -e "  ${WHITE}RFND <ticket id>${NC} - Refund a paid ticket by ticket id"
     echo -e "  ${WHITE}QUIT${NC} - Logout the current user"
     echo ""
     read -p "$(echo -e ${GREEN}"[$LOGGED_IN_USER] Enter command: "${NC})" flight_command param1 origin_code destination_code airline_iata
@@ -459,7 +460,39 @@ while true; do
         fi
         $MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -e "UPDATE seats SET status='available', customer_name=NULL, customer_number=NULL, agency_number=NULL, ticket_id=NULL, is_paid='unpaid' WHERE id=$seat_id;"
         print_color $GREEN "Ticket $tkv_ticket_id has been voided and seat is now available."
-        
+    # Refund Ticket command
+    elif [ "${flight_command^^}" = "RFND" ]; then
+        rfnd_ticket_id="$param1"
+        if [ -z "$rfnd_ticket_id" ]; then
+            print_color $RED "Error: RFND requires a ticket id."
+            continue
+        fi
+        # Check if ticket exists and is paid
+        seat_row=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT id, status, is_paid, price, customer_name FROM seats WHERE ticket_id = '$rfnd_ticket_id' LIMIT 1;")
+        if [ -z "$seat_row" ]; then
+            print_color $RED "Ticket ID not found."
+            continue
+        fi
+        seat_id=$(echo "$seat_row" | awk '{print $1}')
+        seat_status=$(echo "$seat_row" | awk '{print $2}')
+        seat_paid=$(echo "$seat_row" | awk '{print $3}')
+        seat_price=$(echo "$seat_row" | awk '{print $4}')
+        seat_cust=$(echo "$seat_row" | awk '{print $5}')
+        if [ "$seat_paid" != "paid" ]; then
+            print_color $RED "Ticket is not paid and cannot be refunded."
+            continue
+        fi
+        if [ -z "$seat_price" ] || [ "$seat_price" = "0" ]; then
+            print_color $RED "No price found for this ticket. Cannot refund."
+            continue
+        fi
+        read -p "RFND$rfnd_ticket_id confirm refund? y/N: " rfnd_confirm
+        if [[ ! "$rfnd_confirm" =~ ^[Yy]$ ]]; then
+            print_color $YELLOW "Refund aborted."
+            continue
+        fi
+        $MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -e "UPDATE seats SET status='available', customer_name=NULL, customer_number=NULL, agency_number=NULL, ticket_id=NULL, is_paid='unpaid', price=NULL WHERE id=$seat_id;"
+        print_color $GREEN "₱$seat_price has been succesfully refunded to $seat_cust with a ticket of $rfnd_ticket_id"
     # Logout the user
     elif [ "${flight_command^^}" = "QUIT" ]; then
         print_color $GREEN "Logged out successfully."
