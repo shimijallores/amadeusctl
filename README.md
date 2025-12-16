@@ -1,20 +1,18 @@
 # amadeusctl
 
-A control script built for Amadeus GDS
+Simple Bash CLI for Amadeus-like GDS operations using MySQL.
 
-# Example usage:
+## Available Commands
 
-Ticket selling feature.
-
-1. AN JFK LHR DLA
-2. SS1F1
-3. NM Surname/FirstName/Honorific
-4. AP agency number
-5. AP customer number
-
-"FQD" command demo.
-
-Variation 1: FQD JFK LHR
-Variation 2: FQD JFK LHR R
-Variation 3: FQD JFK LHR 26NOV
-Variation 4: FQD JFK LHR R 25NOV
+- `AN <date> <origin> <dest> <airline>`  
+  Search flights (date: MonthDD, e.g., Oct10)
+- `SS<row><class><seats>`  
+  Select seats after a search (e.g., SS2Y2)
+- `NM<num> Surname/First/Title ...`  
+  Enter passenger names (after SS)
+- `AP <number>`  
+  Enter agency number, then customer number (after NM)
+- `FQD <origin> <dest> [R] [date]`  
+  Get fare quote (date: DDMON, e.g., 15DEC)
+- `QUIT`  
+  Logout
