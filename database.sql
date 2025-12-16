@@ -103,10 +103,12 @@ CREATE TABLE IF NOT EXISTS `baggage` (
   `id` int NOT NULL AUTO_INCREMENT,
   `pieces` int DEFAULT NULL,
   `weight` int DEFAULT NULL,
-  `flight_schedule_id` int DEFAULT NULL,
+  `ticket_id` int DEFAULT NULL,
   `seat_id` int DEFAULT NULL,
-  `passenger_id` int DEFAULT NULL,
-  PRIMARY KEY (`id`)
+  `passenger_name` varchar(50) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `FK_baggage_seats` (`seat_id`),
+  CONSTRAINT `FK_baggage_seats` FOREIGN KEY (`seat_id`) REFERENCES `seats` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- Dumping data for table amadeus.baggage: ~0 rows (approximately)
@@ -130,7 +132,7 @@ CREATE TABLE IF NOT EXISTS `flight_routes` (
   CONSTRAINT `FK_flight_routes_origin` FOREIGN KEY (`origin_airport_id`) REFERENCES `airports` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Dumping data for table amadeus.flight_routes: ~11 rows (approximately)
+-- Dumping data for table amadeus.flight_routes: ~10 rows (approximately)
 INSERT INTO `flight_routes` (`id`, `airline_id`, `origin_airport_id`, `destination_airport_id`, `round_trip`, `aircraft_id`) VALUES
 	(1, 1, 1, 2, 1, 1),
 	(2, 1, 2, 1, 1, 1),
@@ -191,7 +193,7 @@ CREATE TABLE IF NOT EXISTS `passengers` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Dumping data for table amadeus.passengers: ~4 rows (approximately)
+-- Dumping data for table amadeus.passengers: ~3 rows (approximately)
 INSERT INTO `passengers` (`id`, `name`, `email`, `phone`) VALUES
 	(1, 'Alice Johnson', 'alice@example.com', '555-0101'),
 	(2, 'Bob Smith', 'bob@test.com', '555-0102'),
