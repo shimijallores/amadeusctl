@@ -10,12 +10,15 @@
 
 - **Start the CLI:** Run `bash flightctl.sh` from the project root.
 - **Login:** Uses MySQL `users` table for authentication. Default users may be found in the `database.sql` dump.
-- **Flight Search:** Use the `AN` command (e.g., `AN Oct10 JFK LHR DLA`) to search for flights by date, origin, destination, and airline.
-- **Seat Selection:** Use the `SS<row><class><seats>` command after a search (e.g., `SS2Y2`).
-- **Passenger Details:** Use the `NM<num> Surname/First/Title ...` command to enter passenger names.
-- **Agency/Customer:** Use the `AP <number>` command twice to enter agency and customer numbers.
-- **Quotation:** Use the `FQD` command (e.g., `FQD JFK LHR R 25NOV`) for fare quotes.
-- **Logout:** Use `QUIT` to end the session.
+- **Flight Search:** `AN <date> <origin> <dest> <airline>` (e.g., `AN Oct10 JFK LHR DLA`) — search for flights by date, origin, destination, and airline.
+- **Seat Selection:** `SS<row><class><seats>` (e.g., `SS2Y2`) — select seats after a search.
+- **Passenger Details:** `NM<num> Surname/First/Title ...` — enter passenger names after seat selection.
+- **Agency/Customer:** `AP <number>` — enter agency and customer numbers after NM.
+- **Quotation:** `FQD <origin> <dest> [R] [date]` (e.g., `FQD JFK LHR R 25NOV`) — get fare quotes.
+- **Void Ticket:** `TKV <ticket id>` — void (cancel) an unpaid ticket by ticket id.
+- **Refund Ticket:** `RFND <ticket id>` — refund a paid ticket by ticket id.
+- **Passenger List:** `DS <carrier_code> <date>` (e.g., `DS DLA01 25NOV`) — show passenger list for a flight.
+- **Logout:** `QUIT` — end the session.
 
 ## Data Flow & Structure
 
@@ -26,7 +29,7 @@
 
 ## Conventions & Patterns
 
-- **Commands mimic Amadeus GDS syntax** (e.g., `AN`, `SS`, `NM`, `AP`, `FQD`).
+- **Commands mimic Amadeus GDS syntax** (e.g., `AN`, `SS`, `NM`, `AP`, `FQD`, `TKV`, `RFND`, `DS`).
 - **Date formats:**
   - `AN` expects `MonthDD` (e.g., `Oct10`).
   - `FQD` expects `DDMON` (e.g., `15DEC`).
@@ -44,6 +47,9 @@
 - Search: `AN Oct10 JFK LHR DLA`
 - Book: `SS2Y2` → `NM2 Smith/John/MR Doe/Jane/MS` → `AP 12345` → `AP 67890`
 - Quote: `FQD JFK LHR R 25NOV`
+- Void: `TKV TKT-100` (void ticket TKT-100 if unpaid)
+- Refund: `RFND TKT-100` (refund ticket TKT-100 if paid)
+- Passenger List: `DS DLA01 25NOV` (show passenger list for carrier DLA01 on Nov 25)
 
 ## Reference Files
 

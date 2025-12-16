@@ -16,7 +16,7 @@ DATABASE_HOST=127.0.0.1
 DATABASE_PORT=3306
 DATABASE_USERNAME=root
 DATABASE_NAME=amadeus
-DATABASE_PASSWORD="shimishimi" # shimishimi for my lappy
+DATABASE_PASSWORD="" # shimishimi for my lappy
 
 LAST_QUERY_RESULT=""
 LAST_OCCUPIED_SEATS=""
@@ -70,6 +70,7 @@ while true; do
     echo -e "  ${WHITE}TKV <ticket id>${NC} - Void (cancel) an unpaid ticket by ticket id"
     echo -e "  ${WHITE}RFND <ticket id>${NC} - Refund a paid ticket by ticket id"
     echo -e "  ${WHITE}DS <carrier_code> <date>${NC} - Show passenger list for a flight (date: DDMON, e.g., 15JUN)"
+    echo -e "  ${WHITE}SSR BAGO <ticket_id> <weight> <pieces>${NC} - Add baggage for a ticket"
         
     echo -e "  ${WHITE}QUIT${NC} - Logout the current user"
     echo ""
@@ -142,6 +143,64 @@ while true; do
         if [ $(echo "$RESULT" | wc -l) -gt 1 ]; then
             LAST_QUERY_RESULT="$RESULT"
         fi
+    
+    # Add Baggage command
+    elif [[ "${flight_command^^}" = "SSR" && "${param1^^}" = "BAGO" ]]; then
+        ssr_ticket_id="$origin_code"
+        ssr_weight="$destination_code"
+        ssr_pieces="$airline_iata"
+        if [ -z "$ssr_ticket_id" ] || [ -z "$ssr_weight" ] || [ -z "$ssr_pieces" ]; then
+            print_color $RED "Usage: SSR BAGO <ticket_id> <weight> <pieces>"
+            continue
+        fi
+        # Parse weight
+        if [[ $ssr_weight =~ ^([0-9]+)[Kk]$ ]]; then
+            ssr_weight_val=${BASH_REMATCH[1]}
+        else
+            print_color $RED "Invalid weight format. Use e.g., 1K for 1 kilograms."
+            continue
+        fi
+        # Parse pieces
+        if [[ $ssr_pieces =~ ^([0-9]+)[Pp]$ ]]; then
+            ssr_pieces_val=${BASH_REMATCH[1]}
+        else
+            print_color $RED "Invalid pieces format. Use e.g., 1P for 1 piece/s."
+            continue
+        fi
+        # Get seat, flight_schedule_id, aircraft_id
+        seat_row=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT id, flight_schedule_id, aircraft_id FROM seats WHERE ticket_id = '$ssr_ticket_id' LIMIT 1;")
+        if [ -z "$seat_row" ]; then
+            print_color $RED "Ticket ID not found."
+            continue
+        fi
+        seat_id=$(echo "$seat_row" | awk '{print $1}')
+        flight_schedule_id=$(echo "$seat_row" | awk '{print $2}')
+        aircraft_id=$(echo "$seat_row" | awk '{print $3}')
+        if [ -z "$aircraft_id" ]; then
+            # fallback: get aircraft_id from flight_schedules
+            aircraft_id=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT aircraft_id FROM flight_schedules WHERE id = $flight_schedule_id LIMIT 1;")
+        fi
+        if [ -z "$aircraft_id" ]; then
+            print_color $RED "Aircraft not found for this ticket."
+            continue
+        fi
+        # Get aircraft payload_capacity
+        payload_capacity=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT payload_capacity FROM aircraft WHERE id = $aircraft_id LIMIT 1;")
+        if [ -z "$payload_capacity" ]; then
+            print_color $RED "Aircraft payload capacity not found."
+            continue
+        fi
+        # Calculate total baggage weight for this flight
+        total_baggage=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT IFNULL(SUM(weight),0) FROM baggage WHERE seat_id IN (SELECT id FROM seats WHERE flight_schedule_id = $flight_schedule_id);")
+        new_total=$((total_baggage + ssr_weight_val))
+        if (( new_total > payload_capacity )); then
+            print_color $RED "Cannot add baggage: exceeds aircraft payload capacity ($payload_capacity kg)."
+            continue
+        fi
+
+        # Insert baggage row
+        $MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -e "INSERT INTO baggage (pieces, weight, seat_id, passenger_name, ticket_id) VALUES ($ssr_pieces_val, $ssr_weight_val, $seat_id, (SELECT customer_name FROM seats WHERE id = $seat_id), '$ssr_ticket_id');"
+        print_color $GREEN "Baggage added: $ssr_weight_val kg, $ssr_pieces_val piece(s) for ticket $ssr_ticket_id."
 
     # Select flight, class, and buy plane seat
     elif [[ "${flight_command^^}" =~ ^SS ]]; then
@@ -530,6 +589,8 @@ while true; do
             print_color $CYAN "Passenger List for $ds_carrier_code on $ds_date:"
             echo "$ds_passengers"
         fi
+        
+
 
     # Logout the user
     elif [ "${flight_command^^}" = "QUIT" ]; then
