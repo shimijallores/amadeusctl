@@ -70,7 +70,7 @@ Run the CLI:
 **Ticket selling:**
 
 ```sh
-AN JFK LHR DLA
+AN NOV25 JFK LHR DLA
 SS1F1
 NM Surname/FirstName/Honorific
 AP <agency number>
@@ -81,7 +81,7 @@ AP <customer number>
 
 - `FQD JFK LHR`
 - `FQD JFK LHR R`
-- `FQD JFK LHR 30NOV`
+- `FQD JFK LHR 26NOV`
 - `FQD JFK LHR R 25NOV`
 
 ## License
