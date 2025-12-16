@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS `baggage` (
   `id` int NOT NULL AUTO_INCREMENT,
   `pieces` int DEFAULT NULL,
   `weight` int DEFAULT NULL,
-  `ticket_id` int DEFAULT NULL,
+  `ticket_id` varchar(50) DEFAULT NULL,
   `seat_id` int DEFAULT NULL,
   `passenger_name` varchar(50) DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -193,7 +193,7 @@ CREATE TABLE IF NOT EXISTS `passengers` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Dumping data for table amadeus.passengers: ~4 rows (approximately)
+-- Dumping data for table amadeus.passengers: ~0 rows (approximately)
 INSERT INTO `passengers` (`id`, `name`, `email`, `phone`) VALUES
 	(1, 'Alice Johnson', 'alice@example.com', '555-0101'),
 	(2, 'Bob Smith', 'bob@test.com', '555-0102'),
@@ -221,7 +221,7 @@ CREATE TABLE IF NOT EXISTS `seats` (
   CONSTRAINT `FK_seats_schedule` FOREIGN KEY (`flight_schedule_id`) REFERENCES `flight_schedules` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=77 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Dumping data for table amadeus.seats: ~76 rows (approximately)
+-- Dumping data for table amadeus.seats: ~0 rows (approximately)
 INSERT INTO `seats` (`id`, `flight_schedule_id`, `aircraft_id`, `ticket_id`, `seat_no`, `class`, `status`, `price`, `is_paid`, `customer_name`, `customer_number`, `agency_number`) VALUES
 	(1, 1, 1, 'TKT-100', '1A', 'F', 'occupied', 500, 'unpaid', 'Shimi Jallores', '09289287057', '09561434976'),
 	(2, 1, 1, '9SIvMzLWge', '1B', 'F', 'occupied', 500, 'paid', 'Jallores Shimi Mr', '09561434976', '09289287057'),
