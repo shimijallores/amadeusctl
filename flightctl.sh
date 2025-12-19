@@ -61,6 +61,16 @@ print_commands() {
     echo ""
 }
 
+# MySQL query helper function
+mysql_query() {
+    local args=(-h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME")
+    if [ -n "$DATABASE_PASSWORD" ]; then
+        args+=(-p"$DATABASE_PASSWORD")
+    fi
+    args+=("$DATABASE_NAME" "$@")
+    "$MYSQL_PATH" "${args[@]}"
+}
+
 print_header
 
 # Login logic
@@ -68,7 +78,7 @@ while [ -z "$LOGGED_IN_USER" ]; do
     read -p "Username: " username
     read -s -p "Password: " password
     echo ""
-    result=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT username FROM users WHERE username = '$username' AND password = '$password';")
+    result=$(mysql_query -N -B -e "SELECT username FROM users WHERE username = '$username' AND password = '$password';")
     if [ -n "$result" ]; then
         LOGGED_IN_USER="$result"
         print_color $GREEN "Login successful. Welcome, $LOGGED_IN_USER!"
@@ -102,18 +112,14 @@ while true; do
 
         # Get airport names
         origin_name=$(
-            $MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" \
-            -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" \
-            "$DATABASE_NAME" -N -B -e \
+            mysql_query -N -B -e \
             "SELECT airport_name FROM airports WHERE iata = '${origin_code}' LIMIT 1;"
         )
 
         print_color $BLUE "Origin: $origin_name"
 
         destination_name=$(
-            $MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" \
-            -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" \
-            "$DATABASE_NAME" -N -B -e \
+            mysql_query -N -B -e \
             "SELECT airport_name FROM airports WHERE iata = '${destination_code}' LIMIT 1;"
         )
 
@@ -138,9 +144,7 @@ while true; do
               AND air.iata = '${airline_iata}'
         "
 
-        RESULT=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" \
-            -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" \
-            "$DATABASE_NAME" -e "$QUERY")
+        RESULT=$(mysql_query -e "$QUERY")
 
         echo ""
         print_color $YELLOW "Flight Results:"
@@ -175,7 +179,7 @@ while true; do
             continue
         fi
         # Get seat, flight_schedule_id, aircraft_id
-        seat_row=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT id, flight_schedule_id, aircraft_id FROM seats WHERE ticket_id = '$ssr_ticket_id' LIMIT 1;")
+        seat_row=$(mysql_query -N -B -e "SELECT id, flight_schedule_id, aircraft_id FROM seats WHERE ticket_id = '$ssr_ticket_id' LIMIT 1;")
         if [ -z "$seat_row" ]; then
             print_color $RED "Ticket ID not found."
             continue
@@ -185,20 +189,20 @@ while true; do
         aircraft_id=$(echo "$seat_row" | awk '{print $3}')
         if [ -z "$aircraft_id" ]; then
             # fallback: get aircraft_id from flight_schedules
-            aircraft_id=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT aircraft_id FROM flight_schedules WHERE id = $flight_schedule_id LIMIT 1;")
+            aircraft_id=$(mysql_query -N -B -e "SELECT aircraft_id FROM flight_schedules WHERE id = $flight_schedule_id LIMIT 1;")
         fi
         if [ -z "$aircraft_id" ]; then
             print_color $RED "Aircraft not found for this ticket."
             continue
         fi
         # Get aircraft payload_capacity
-        payload_capacity=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT payload_capacity FROM aircraft WHERE id = $aircraft_id LIMIT 1;")
+        payload_capacity=$(mysql_query -N -B -e "SELECT payload_capacity FROM aircraft WHERE id = $aircraft_id LIMIT 1;")
         if [ -z "$payload_capacity" ]; then
             print_color $RED "Aircraft payload capacity not found."
             continue
         fi
         # Calculate total baggage weight for this flight
-        total_baggage=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT IFNULL(SUM(weight),0) FROM baggage WHERE seat_id IN (SELECT id FROM seats WHERE flight_schedule_id = $flight_schedule_id);")
+        total_baggage=$(mysql_query -N -B -e "SELECT IFNULL(SUM(weight),0) FROM baggage WHERE seat_id IN (SELECT id FROM seats WHERE flight_schedule_id = $flight_schedule_id);")
         new_total=$((total_baggage + ssr_weight_val))
         if (( new_total > payload_capacity )); then
             print_color $RED "Cannot add baggage: exceeds aircraft payload capacity ($payload_capacity kg)."
@@ -206,7 +210,7 @@ while true; do
         fi
 
         # Insert baggage row
-        $MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -e "INSERT INTO baggage (pieces, weight, seat_id, passenger_name, ticket_id) VALUES ($ssr_pieces_val, $ssr_weight_val, $seat_id, (SELECT customer_name FROM seats WHERE id = $seat_id), '$ssr_ticket_id');"
+        mysql_query -e "INSERT INTO baggage (pieces, weight, seat_id, passenger_name, ticket_id) VALUES ($ssr_pieces_val, $ssr_weight_val, $seat_id, (SELECT customer_name FROM seats WHERE id = $seat_id), '$ssr_ticket_id');"
         print_color $GREEN "Baggage added: $ssr_weight_val kg, $ssr_pieces_val piece(s) for ticket $ssr_ticket_id."
 
     # Select flight, class, and buy plane seat
@@ -237,7 +241,7 @@ while true; do
             ROW=$(echo "$LAST_QUERY_RESULT" | tail -n +2 | sed -n "${row}p")
             flight_no=$(echo "$ROW" | awk -F'\t' '{print $5}')
 
-            available_count=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT COUNT(*) FROM seats WHERE flight_schedule_id = $flight_no AND class = '$class' AND status = 'available';")
+            available_count=$(mysql_query -N -B -e "SELECT COUNT(*) FROM seats WHERE flight_schedule_id = $flight_no AND class = '$class' AND status = 'available';")
 
             if (( available_count < num_seats )); then
                 print_color $RED "Not enough available seats in class $class. Available: $available_count"
@@ -245,7 +249,7 @@ while true; do
             fi
 
             # Get available seats
-            available_seats=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT id FROM seats WHERE flight_schedule_id = $flight_no AND class = '$class' AND status = 'available' ORDER BY id LIMIT $num_seats;")
+            available_seats=$(mysql_query -N -B -e "SELECT id FROM seats WHERE flight_schedule_id = $flight_no AND class = '$class' AND status = 'available' ORDER BY id LIMIT $num_seats;")
             seat_ids=($available_seats)
 
             # Set state for passenger input
@@ -308,7 +312,7 @@ while true; do
                 sid=${seat_ids[$i]}
                 ticket_num=${ticket_nums[$i]}
                 name=${names[$i]}
-                $MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -e "UPDATE seats SET status='occupied', ticket_id='$ticket_num', customer_name='$name' WHERE id=$sid;"
+                mysql_query -e "UPDATE seats SET status='occupied', ticket_id='$ticket_num', customer_name='$name' WHERE id=$sid;"
             done
 
             LAST_OCCUPIED_SEATS="$SELECTED_SEAT_IDS"
@@ -335,7 +339,7 @@ while true; do
                 continue
             else
                 for sid in $LAST_OCCUPIED_SEATS; do
-                    $MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -e "UPDATE seats SET agency_number='$agency_number' WHERE id=$sid;"
+                    mysql_query -e "UPDATE seats SET agency_number='$agency_number' WHERE id=$sid;"
                 done
                 print_color $GREEN "Agency number updated."
                 WAITING_FOR_AGENCY=false
@@ -350,7 +354,7 @@ while true; do
                 continue
             else
                 for sid in $LAST_OCCUPIED_SEATS; do
-                    $MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -e "UPDATE seats SET customer_number='$customer_number' WHERE id=$sid;"
+                    mysql_query -e "UPDATE seats SET customer_number='$customer_number' WHERE id=$sid;"
                 done
                 print_color $GREEN "Customer number updated."
                 WAITING_FOR_CUSTOMER=false
@@ -395,22 +399,22 @@ while true; do
         fi
 
         # Get origin airport ID
-        origin_id=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT id FROM airports WHERE iata = '$fqd_origin' LIMIT 1;")
+        origin_id=$(mysql_query -N -B -e "SELECT id FROM airports WHERE iata = '$fqd_origin' LIMIT 1;")
         if [ -z "$origin_id" ]; then
             print_color $RED "Error: Origin airport '$fqd_origin' not found."
             continue
         fi
 
         # Get destination airport ID
-        dest_id=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT id FROM airports WHERE iata = '$fqd_dest' LIMIT 1;")
+        dest_id=$(mysql_query -N -B -e "SELECT id FROM airports WHERE iata = '$fqd_dest' LIMIT 1;")
         if [ -z "$dest_id" ]; then
             print_color $RED "Error: Destination airport '$fqd_dest' not found."
             continue
         fi
 
         # Get airport names for display
-        origin_airport_name=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT airport_name FROM airports WHERE id = $origin_id;")
-        dest_airport_name=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT airport_name FROM airports WHERE id = $dest_id;")
+        origin_airport_name=$(mysql_query -N -B -e "SELECT airport_name FROM airports WHERE id = $origin_id;")
+        dest_airport_name=$(mysql_query -N -B -e "SELECT airport_name FROM airports WHERE id = $dest_id;")
 
         print_color $BLUE "Origin: $origin_airport_name ($fqd_origin)"
         print_color $BLUE "Destination: $dest_airport_name ($fqd_dest)"
@@ -487,7 +491,7 @@ while true; do
             "
         fi
 
-        FQD_RESULT=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -e "$FQD_QUERY")
+        FQD_RESULT=$(mysql_query -e "$FQD_QUERY")
 
         echo ""
         if [ $(echo "$FQD_RESULT" | wc -l) -gt 1 ]; then
@@ -505,7 +509,7 @@ while true; do
             continue
         fi
         # Check if ticket exists and is unpaid
-        seat_row=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT id, status, is_paid FROM seats WHERE ticket_id = '$tkv_ticket_id' LIMIT 1;")
+        seat_row=$(mysql_query -N -B -e "SELECT id, status, is_paid FROM seats WHERE ticket_id = '$tkv_ticket_id' LIMIT 1;")
         if [ -z "$seat_row" ]; then
             print_color $RED "Ticket ID not found."
             continue
@@ -526,7 +530,7 @@ while true; do
             print_color $YELLOW "Cancellation aborted."
             continue
         fi
-        $MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -e "UPDATE seats SET status='available', customer_name=NULL, customer_number=NULL, agency_number=NULL, ticket_id=NULL, is_paid='unpaid' WHERE id=$seat_id;"
+        mysql_query -e "UPDATE seats SET status='available', customer_name=NULL, customer_number=NULL, agency_number=NULL, ticket_id=NULL, is_paid='unpaid' WHERE id=$seat_id;"
         print_color $GREEN "Ticket $tkv_ticket_id has been voided and seat is now available."
     # Refund Ticket command
     elif [ "${flight_command^^}" = "RFND" ]; then
@@ -536,7 +540,7 @@ while true; do
             continue
         fi
         # Check if ticket exists and is paid
-        seat_row=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT id, status, is_paid, price, customer_name FROM seats WHERE ticket_id = '$rfnd_ticket_id' LIMIT 1;")
+        seat_row=$(mysql_query -N -B -e "SELECT id, status, is_paid, price, customer_name FROM seats WHERE ticket_id = '$rfnd_ticket_id' LIMIT 1;")
         if [ -z "$seat_row" ]; then
             print_color $RED "Ticket ID not found."
             continue
@@ -559,7 +563,7 @@ while true; do
             print_color $YELLOW "Refund aborted."
             continue
         fi
-        $MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -e "UPDATE seats SET status='available', customer_name=NULL, customer_number=NULL, agency_number=NULL, ticket_id=NULL, is_paid='unpaid', price=NULL WHERE id=$seat_id;"
+        mysql_query -e "UPDATE seats SET status='available', customer_name=NULL, customer_number=NULL, agency_number=NULL, ticket_id=NULL, is_paid='unpaid', price=NULL WHERE id=$seat_id;"
         print_color $GREEN "₱$seat_price has been succesfully refunded to $seat_cust with a ticket of $rfnd_ticket_id"
 
     # Passenger List command
@@ -583,13 +587,13 @@ while true; do
             continue
         fi
         # Find flight_schedule id
-        ds_flight_id=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT id FROM flight_schedules WHERE carrier_code = '$ds_carrier_code' AND date_departure = '$ds_formatted_date' LIMIT 1;")
+        ds_flight_id=$(mysql_query -N -B -e "SELECT id FROM flight_schedules WHERE carrier_code = '$ds_carrier_code' AND date_departure = '$ds_formatted_date' LIMIT 1;")
         if [ -z "$ds_flight_id" ]; then
             print_color $RED "No flight found for carrier $ds_carrier_code on $ds_formatted_date."
             continue
         fi
         # Fetch passenger names
-        ds_passengers=$($MYSQL_PATH -h "$DATABASE_HOST" -P "$DATABASE_PORT" -u "$DATABASE_USERNAME" -p"$DATABASE_PASSWORD" "$DATABASE_NAME" -N -B -e "SELECT customer_name FROM seats WHERE flight_schedule_id = $ds_flight_id AND customer_name IS NOT NULL;")
+        ds_passengers=$(mysql_query -N -B -e "SELECT customer_name FROM seats WHERE flight_schedule_id = $ds_flight_id AND customer_name IS NOT NULL;")
         if [ -z "$ds_passengers" ]; then
             print_color $YELLOW "No passengers found for this flight."
         else

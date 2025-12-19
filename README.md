@@ -30,15 +30,40 @@ Run the CLI:
 
 **Search flights command (AN):**
 
-Format: `AN <date> <origin> <dest> <airline>`
-Example: `AN NOV25 JFK LHR DLA`
+1. `AN` availabity search
+   Description: Search for available flights between airports
+   Format: `AN <origin> <destination> <date>`
+   Example: `AN MNL CEB NOV25`
+
+2. `AN` with class filter
+   Description: Search flights and display specific class pricing
+   Format: `AN <origin> <destination> <date> <class>`
+   Classes: `f (First), c (Business), y (Economy)`
+   Example: `AN MNL CEB NOV25 y`
+   Example:`AN MNL CEB NOV25 f`
+   Example: `AN MNL CEB NOV25 c`
+
+3. `AN` with airline filter
+   Description: Search flights by specific airline
+   Format: `AN <date> <origin> <destination> <airline>`
+   Example: `AN NOV25 JFK LHR DLA`
+
+4. `AN` with date range
+   Description: Search flights within a date range
+   Format: `AN <origin> <destination> <date_from> <date_to>`
+   Example: `AN MNL CEB NOV25 DEC25`
+
+5. `AN` multi city
+   Description: Search for multiple flight segments
+   Format: `AN <origin1> <dest1> <date1> <origin2> <dest2> <date2>`
+   Example: `AN MNL CEB DEC15 CEB MNL DEC20`
 
 **Ticket ordering command (AN, SS, NM, AP agency, AP customer):**
 
 Example Workflow (Full ticket ordering):
 
 1. Fetch Flights
-   Format: `AN <date> <origin> <dest> <airline>`
+   Format: `AN <date> <origin> <destination> <airline>`
    Example:`AN NOV25 JFK LHR DLA`
 
 2. Select flight, class, and seat
