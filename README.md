@@ -22,6 +22,11 @@ Simple Bash CLI for Amadeus-like GDS operations using MySQL.
 
 ## Demonstration
 
+**Login Credentials:**
+
+1. Username: `admin`
+2. Password: `admin123`
+
 **Search flights command (AN):**
 
 1. `AN` availabity search
