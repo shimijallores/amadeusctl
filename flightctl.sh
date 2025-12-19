@@ -94,6 +94,31 @@ while true; do
     read -ra args <<< "$user_input"
     flight_command="${args[0]}"
     
+    # Check for booking cancellation: if user runs a command other than NM, AP, HELP, SO while booking is pending
+    if ([ "$WAITING_FOR_NM" = true ] || [ "$WAITING_FOR_CUSTOMER" = true ]) && \
+       ! [[ "${flight_command^^}" =~ ^NM ]] && ! [[ "${flight_command^^}" =~ ^AP$ ]] && \
+       [ "${flight_command^^}" != "HELP" ] && [ "${flight_command^^}" != "SO" ]; then
+        
+        # Cancel the booking and free up the seats
+        print_color $RED "Booking cancelled - seats have been released."
+        
+        # Reset customer_name, customer_number, agency_number, ticket_id for the selected seats
+        for seat_id in $SELECTED_SEAT_IDS; do
+            mysql_query -e "UPDATE seats SET status='available', ticket_id=NULL, customer_name=NULL, customer_number=NULL, agency_number=NULL WHERE id=$seat_id;"
+        done
+        
+        # Reset state
+        WAITING_FOR_NM=false
+        WAITING_FOR_AGENCY=false
+        WAITING_FOR_CUSTOMER=false
+        SELECTED_FLIGHT_NO=""
+        SELECTED_CLASS=""
+        SELECTED_NUM_SEATS=""
+        SELECTED_SEAT_IDS=""
+        LAST_OCCUPIED_SEATS=""
+        echo ""
+    fi
+    
     if [ "${flight_command^^}" = "HELP" ]; then
         print_commands
     
