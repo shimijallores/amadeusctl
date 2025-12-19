@@ -57,7 +57,7 @@ print_commands() {
     echo -e "  ${WHITE}DS <carrier_code> <date>${NC} - Show passenger list for a flight)"
     echo -e "  ${WHITE}SSR BAGO <ticket_id> <weight> <pieces>${NC} - Add baggage for a ticket"
     echo -e "  ${WHITE}HELP${NC} - Show available commands"
-    echo -e "  ${WHITE}QUIT${NC} - Logout the current user"
+    echo -e "  ${WHITE}SO${NC} - Logout the current user"
     echo ""
 }
 
