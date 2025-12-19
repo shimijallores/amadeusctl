@@ -2,25 +2,9 @@
 
 Simple Bash CLI for Amadeus-like GDS operations using MySQL.
 
-## Table of Contents
-
-- [Description](#description)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Available Commands](#available-commands)
-- [Examples](#examples)
-- [License](#license)
-
 ## Description
 
 `amadeusctl` is a lightweight Bash-based command-line tool that simulates Amadeus GDS operations for flight management, ticketing, and passenger handling, using a MySQL backend.
-
-## Prerequisites
-
-- Bash shell (Linux, macOS, or Windows with WSL/Git Bash)
-- MySQL server
-- Basic knowledge of airline reservation systems
 
 ## Installation
 
@@ -42,48 +26,79 @@ Run the CLI:
 ./flightctl.sh
 ```
 
-## Available Commands
+## Demonstration
 
-- `AN <date> <origin> <dest> <airline>`  
-  Search flights (date: MonthDD, e.g., Oct10)
-- `SS<row><class><seats>`  
-  Select seats after a search (e.g., SS2Y2)
-- `NM<num> Surname/First/Title ...`  
-  Enter passenger names
-- `AP <number>`  
-  Enter agency number, then customer number
-- `FQD <origin> <dest> [R] [date]`  
-  Get fare quote (e.g., FQD JFK LHR R 25NOV)
-- `TKV <ticket id>`  
-  Void (cancel) an unpaid ticket by ticket id (e.g., TKV TKT-101)
-- `RFND <ticket id>`  
-  Refund a paid ticket by ticket id (e.g., RFND 9SIvMzLWge)
-- `DS <carrier_code> <date>`  
-  Show passenger list for a flight (e.g., DS DLA01 25NOV)
-- `SSR BAGO <ticket_id> <weight> <pieces>`  
-  Add baggage for a ticket (e.g., SSR BAGO TKT-100 30K 2P)
-- `QUIT`  
-  Logout
+**Search flights command (AN):**
 
-## Examples
+Format: `AN <date> <origin> <dest> <airline>`
+Example: `AN NOV25 JFK LHR DLA`
 
-**Ticket selling:**
+**Ticket ordering command (AN, SS, NM, AP agency, AP customer):**
 
-```sh
-AN NOV25 JFK LHR DLA
-SS1F1
-NM Surname/FirstName/Honorific
-AP <agency number>
-AP <customer number>
-```
+Example Workflow (Full ticket ordering):
 
-**Fare quote (FQD) command variations:**
+1. Fetch Flights
+   Format: `AN <date> <origin> <dest> <airline>`
+   Example:`AN NOV25 JFK LHR DLA`
 
-- `FQD JFK LHR`
-- `FQD JFK LHR R`
-- `FQD JFK LHR 26NOV`
-- `FQD JFK LHR R 25NOV`
+2. Select flight, class, and seat
+   Format: `SS<row><class><seats>`
+   Example: `SS1F1`
+
+3. Input customer name/s
+   Format: `NM<num> Surname/First/Title ...`
+   Example: `NM1 Jallores/Shimi/Mr`
+
+4. Enter agency number
+   Format: `AP <agency number>`
+   Example (Agency):`AP 09123456789`
+
+5. Enter customer number
+   Format: `AP <customer number>`
+   Example: `AP 09123456789`
+
+**Fare quote command (FQD):**
+
+1. FQD One Way
+   Format: `FQD <origin> <destination>`
+   Example: `FQD JFK LHR`
+
+2. FQD Round Trip
+   Format: `FQD <origin> <destination> [R]`
+   Example: `FQD JFK LHR R`
+
+3. FQD One Way (with date)
+   Format: `FQD <origin> <destination> [date]`
+   Example: `FQD JFK LHR 26NOV`
+
+4. FQD Round Trip (with date)
+   Format: `FQD <origin> <destination> [R] [date]`
+   Example: `FQD JFK LHR R 25NOV`
+
+**Void Command (TKV):**
+Description: Void (cancel) an unpaid ticket by ticket id
+Format: `TKV <ticket_id`
+Example: `TKV TKT-101`
+
+**Refund Command (RFND):**
+Description: Refund a paid ticket by ticket id
+Format: `RFND <ticket id>`
+Example: `RFND 9SIvMzLWge`
+
+**List Passengers Command (DS):**
+Description: Show passenger list for a flight
+Format: `DS <carrier_code> <date>`
+Example: `DS DLA01 25NO`
+
+**Baggage Command (SSR):**
+Description: Add baggage for a ticket
+Format: `SSR BAGO <ticket_id> <weight> <pieces>`  
+Example: `SSR BAGO TKT-100 30K 2P`
+
+**Signout/Logout Command (SO):**
+Description: Log out of the session
+Command: `SO`
 
 ## License
 
-MIT License (or specify your license here)
+MIT License

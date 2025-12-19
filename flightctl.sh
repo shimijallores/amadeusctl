@@ -44,6 +44,23 @@ print_header() {
     echo ""
 }
 
+# Print available commands
+print_commands() {
+    echo -e "${YELLOW}Available commands:${NC}"
+    echo -e "  ${WHITE}AN <date> <origin> <dest> <airline>${NC} - Search flights"
+    echo -e "  ${WHITE}SS<row><class><seats>${NC} - Select seats"
+    echo -e "  ${WHITE}NM<num> <passengers>${NC} - Enter passenger details (after SS)"
+    echo -e "  ${WHITE}AP <number>${NC} - Enter agency/customer number (after NM)"
+    echo -e "  ${WHITE}FQD <origin> <dest> [R] [date]${NC} - Get flight quotation"
+    echo -e "  ${WHITE}TKV <ticket id>${NC} - Void (cancel) an unpaid ticket by ticket id"
+    echo -e "  ${WHITE}RFND <ticket id>${NC} - Refund a paid ticket by ticket id"
+    echo -e "  ${WHITE}DS <carrier_code> <date>${NC} - Show passenger list for a flight)"
+    echo -e "  ${WHITE}SSR BAGO <ticket_id> <weight> <pieces>${NC} - Add baggage for a ticket"
+    echo -e "  ${WHITE}HELP${NC} - Show available commands"
+    echo -e "  ${WHITE}QUIT${NC} - Logout the current user"
+    echo ""
+}
+
 print_header
 
 # Login logic
@@ -61,23 +78,13 @@ while [ -z "$LOGGED_IN_USER" ]; do
 done
 
 while true; do
-    echo -e "${YELLOW}Available commands:${NC}"
-    echo -e "  ${WHITE}AN <date> <origin> <dest> <airline>${NC} - Search flights (date format: MonthDD, e.g., Oct10)"
-    echo -e "  ${WHITE}SS<row><class><seats>${NC} - Select seats"
-    echo -e "  ${WHITE}NM<num> <passengers>${NC} - Enter passenger details (after SS)"
-    echo -e "  ${WHITE}AP <number>${NC} - Enter agency/customer number (after NM)"
-    echo -e "  ${WHITE}FQD <origin> <dest> [R] [date]${NC} - Get flight quotation (R=roundtrip, date=DDMON)"
-    echo -e "  ${WHITE}TKV <ticket id>${NC} - Void (cancel) an unpaid ticket by ticket id"
-    echo -e "  ${WHITE}RFND <ticket id>${NC} - Refund a paid ticket by ticket id"
-    echo -e "  ${WHITE}DS <carrier_code> <date>${NC} - Show passenger list for a flight (date: DDMON, e.g., 15JUN)"
-    echo -e "  ${WHITE}SSR BAGO <ticket_id> <weight> <pieces>${NC} - Add baggage for a ticket"
-        
-    echo -e "  ${WHITE}QUIT${NC} - Logout the current user"
-    echo ""
     read -p "$(echo -e ${GREEN}"[$LOGGED_IN_USER] Enter command: "${NC})" flight_command param1 origin_code destination_code airline_iata
 
+    if [ "${flight_command^^}" = "HELP" ]; then
+        print_commands
+    
     # Search for flight schedules
-    if [ "${flight_command^^}" = "AN" ]; then
+    elif [ "${flight_command^^}" = "AN" ]; then
         # Validate departure date format (MonthDD)
         if [[ ! $param1 =~ ^[A-Za-z]{3}[0-9]{2}$ ]]; then
             print_color $RED "Error: Departure date must be in MonthDD format (e.g., Oct10 for October 10)."
@@ -593,7 +600,7 @@ while true; do
 
 
     # Logout the user
-    elif [ "${flight_command^^}" = "QUIT" ]; then
+    elif [ "${flight_command^^}" = "SO" ]; then
         print_color $GREEN "Logged out successfully."
         LOGGED_IN_USER=""
         break
