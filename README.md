@@ -6,21 +6,15 @@ Simple Bash CLI for Amadeus-like GDS operations using MySQL.
 
 `amadeusctl` is a lightweight Bash-based command-line tool that simulates Amadeus GDS operations for flight management, ticketing, and passenger handling, using a MySQL backend.
 
-## Installation
+## Installation & Usage
 
 1. Clone or download this repository.
 2. Ensure `flightctl.sh` is executable:
    ```sh
    chmod +x flightctl.sh
    ```
-3. Set up the MySQL database using `database.sql`:
-   ```sh
-   mysql -u <user> -p <database> < database.sql
-   ```
-
-## Usage
-
-Run the CLI:
+3. Update the mysql configuration in the flightctl.sh
+4. Run the CLI:
 
 ```sh
 ./flightctl.sh
@@ -33,15 +27,15 @@ Run the CLI:
 1. `AN` availabity search
    Description: Search for available flights between airports
    Format: `AN <origin> <destination> <date>`
-   Example: `AN MNL CEB NOV25`
+   Example: `AN JFK LHR NOV25`
 
 2. `AN` with class filter
    Description: Search flights and display specific class pricing
    Format: `AN <origin> <destination> <date> <class>`
    Classes: `f (First), c (Business), y (Economy)`
-   Example: `AN MNL CEB NOV25 y`
-   Example:`AN MNL CEB NOV25 f`
-   Example: `AN MNL CEB NOV25 c`
+   Example:`AN JFK LHR NOV25 f`
+   Example: `AN JFK LHR NOV25 c`
+   Example: `AN JFK LHR NOV25 y`
 
 3. `AN` with airline filter
    Description: Search flights by specific airline
@@ -51,12 +45,12 @@ Run the CLI:
 4. `AN` with date range
    Description: Search flights within a date range
    Format: `AN <origin> <destination> <date_from> <date_to>`
-   Example: `AN MNL CEB NOV25 DEC25`
+   Example: `AN JFK LHR NOV25 DEC25`
 
 5. `AN` multi city
    Description: Search for multiple flight segments
    Format: `AN <origin1> <dest1> <date1> <origin2> <dest2> <date2>`
-   Example: `AN MNL CEB DEC15 CEB MNL DEC20`
+   Example: `AN JFK LHR NOV25 LHR HND DEC02`
 
 **Ticket ordering command (AN, SS, NM, AP agency, AP customer):**
 
@@ -68,7 +62,7 @@ Example Workflow (Full ticket ordering):
 
 2. Select flight, class, and seat
    Format: `SS<row><class><seats>`
-   Example: `SS1F1`
+   Example: `SS1C1`
 
 3. Input customer name/s
    Format: `NM<num> Surname/First/Title ...`
@@ -113,7 +107,7 @@ Example: `RFND 9SIvMzLWge`
 **List Passengers Command (DS):**
 Description: Show passenger list for a flight
 Format: `DS <carrier_code> <date>`
-Example: `DS DLA01 25NO`
+Example: `DS DLA01 25NOV`
 
 **Baggage Command (SSR):**
 Description: Add baggage for a ticket
@@ -123,7 +117,3 @@ Example: `SSR BAGO TKT-100 30K 2P`
 **Signout/Logout Command (SO):**
 Description: Log out of the session
 Command: `SO`
-
-## License
-
-MIT License

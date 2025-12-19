@@ -170,10 +170,10 @@ CREATE TABLE IF NOT EXISTS `flight_schedules` (
   CONSTRAINT `FK_flight_schedules_user` FOREIGN KEY (`airline_user_id`) REFERENCES `airline_users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=41 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Dumping data for table amadeus.flight_schedules: ~11 rows (approximately)
+-- Dumping data for table amadeus.flight_schedules: ~12 rows (approximately)
 INSERT INTO `flight_schedules` (`id`, `airline_user_id`, `flight_route_id`, `aircraft_id`, `carrier_code`, `date_departure`, `time_departure`, `date_arrival`, `time_arrival`, `status`, `price_f`, `price_c`, `price_y`) VALUES
 	(1, 1, 1, 1, 'DLA01', '2025-11-25', '08:00', '2025-11-25', '20:00', 'boarding', 3800.00, 1500.00, 400.00),
-	(2, 2, 3, 2, 'DLA02', '2025-11-26', '10:00', '2025-11-27', '05:00', 'Scheduled', 0.00, 1800.00, 500.00),
+	(2, 2, 3, 2, 'DLA02', '2025-12-02', '10:00', '2025-11-27', '05:00', 'Scheduled', 0.00, 1800.00, 500.00),
 	(3, 5, 4, 3, NULL, '2025-11-28', '14:00', '2025-11-28', '22:00', 'Scheduled', 0.00, 0.00, 200.00),
 	(4, 3, 6, 4, NULL, '2025-11-29', '09:00', '2025-11-29', '16:00', 'Scheduled', 5000.00, 0.00, 0.00),
 	(5, 4, 5, 3, NULL, '2025-12-01', '07:00', '2025-12-01', '15:00', 'Delayed', 0.00, 0.00, 210.00),
@@ -182,7 +182,8 @@ INSERT INTO `flight_schedules` (`id`, `airline_user_id`, `flight_route_id`, `air
 	(8, 2, 8, 5, NULL, '2025-12-05', '06:00', '2025-12-05', '14:00', 'Cancelled', 0.00, 800.00, 300.00),
 	(9, 1, 9, 2, NULL, '2025-12-06', '20:00', '2025-12-07', '10:00', 'Scheduled', 0.00, 1900.00, 550.00),
 	(10, 5, 10, 2, NULL, '2025-12-08', '11:00', '2025-12-09', '01:00', 'Scheduled', 0.00, 1800.00, 500.00),
-	(11, 1, 11, 1, NULL, '2025-11-26', '08:00', '2025-11-25', '20:00', 'boarding', 3800.00, 1500.00, 400.00);
+	(11, 1, 11, 1, NULL, '2025-11-26', '08:00', '2025-11-25', '20:00', 'boarding', 3800.00, 1500.00, 400.00),
+	(12, 1, 1, 2, 'DLA04', '2025-12-01', '4:00', '2025-12-15', '8:00', 'boarding', 40000.00, 30000.00, 10000.00);
 
 -- Dumping structure for table amadeus.passengers
 CREATE TABLE IF NOT EXISTS `passengers` (
@@ -193,7 +194,7 @@ CREATE TABLE IF NOT EXISTS `passengers` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Dumping data for table amadeus.passengers: ~0 rows (approximately)
+-- Dumping data for table amadeus.passengers: ~4 rows (approximately)
 INSERT INTO `passengers` (`id`, `name`, `email`, `phone`) VALUES
 	(1, 'Alice Johnson', 'alice@example.com', '555-0101'),
 	(2, 'Bob Smith', 'bob@test.com', '555-0102'),

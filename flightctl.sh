@@ -39,7 +39,7 @@ print_color() {
 # Print header
 print_header() {
     echo -e "${CYAN}=======================================${NC}"
-    echo -e "${CYAN}       Flight Control System${NC}"
+    echo -e "${CYAN}       Amadeus Control System${NC}"
     echo -e "${CYAN}=======================================${NC}"
     echo ""
 }
@@ -88,82 +88,539 @@ while [ -z "$LOGGED_IN_USER" ]; do
 done
 
 while true; do
-    read -p "$(echo -e ${GREEN}"[$LOGGED_IN_USER] Enter command: "${NC})" flight_command param1 origin_code destination_code airline_iata
+    read -p "$(echo -e ${GREEN}"[$LOGGED_IN_USER] Enter command: "${NC})" user_input
 
+    # Parse command and arguments
+    read -ra args <<< "$user_input"
+    flight_command="${args[0]}"
+    
     if [ "${flight_command^^}" = "HELP" ]; then
         print_commands
     
-    # Search for flight schedules
+    # Search for flight schedules - Multiple variations
     elif [ "${flight_command^^}" = "AN" ]; then
-        # Validate departure date format (MonthDD)
-        if [[ ! $param1 =~ ^[A-Za-z]{3}[0-9]{2}$ ]]; then
-            print_color $RED "Error: Departure date must be in MonthDD format (e.g., Oct10 for October 10)."
-            continue
+        num_args=${#args[@]}
+        
+        # Variation 1: AN <origin> <destination> <date> - Basic search
+        if [ $num_args -eq 4 ]; then
+            origin="${args[1]^^}"
+            destination="${args[2]^^}"
+            date_input="${args[3]}"
+            
+            # Validate date format (MMMDD or DDMON)
+            if [[ $date_input =~ ^[A-Za-z]{3}[0-9]{2}$ ]]; then
+                # MonthDD format
+                month_str=${date_input:0:3}
+                DAY=${date_input:3:2}
+                if ! FORMATTED_DATE=$(date -d "${month_str} ${DAY} 2025" +%Y-%m-%d 2>/dev/null); then
+                    print_color $RED "Error: Invalid date. Please check the month abbreviation and day."
+                    continue
+                fi
+            elif [[ $date_input =~ ^[0-9]{2}[A-Za-z]{3}$ ]]; then
+                # DDMON format
+                DAY=${date_input:0:2}
+                month_str=${date_input:2:3}
+                if ! FORMATTED_DATE=$(date -d "${month_str} ${DAY} 2025" +%Y-%m-%d 2>/dev/null); then
+                    print_color $RED "Error: Invalid date. Please check the day and month abbreviation."
+                    continue
+                fi
+            else
+                print_color $RED "Error: Date must be in MonthDD or DDMON format (e.g., Oct10 or 10OCT)."
+                continue
+            fi
+            
+            # Get airport names
+            origin_name=$(mysql_query -N -B -e "SELECT airport_name FROM airports WHERE iata = '${origin}' LIMIT 1;")
+            if [ -z "$origin_name" ]; then
+                print_color $RED "Error: Origin airport '$origin' not found."
+                continue
+            fi
+            
+            destination_name=$(mysql_query -N -B -e "SELECT airport_name FROM airports WHERE iata = '${destination}' LIMIT 1;")
+            if [ -z "$destination_name" ]; then
+                print_color $RED "Error: Destination airport '$destination' not found."
+                continue
+            fi
+            
+            print_color $BLUE "Origin: $origin_name ($origin)"
+            print_color $BLUE "Destination: $destination_name ($destination)"
+            print_color $BLUE "Date: $FORMATTED_DATE"
+            
+            QUERY="
+                SELECT 
+                    fs.date_departure AS 'Date Departure',
+                    fs.time_departure AS 'Time',
+                    air.airline AS 'Airline',
+                    craft.model AS 'Aircraft',
+                    fs.id AS 'Flight No.'
+                FROM flight_schedules fs
+                JOIN flight_routes fr ON fs.flight_route_id = fr.id   
+                JOIN airports a_orig ON a_orig.id = fr.origin_airport_id
+                JOIN airports a_dest ON a_dest.id = fr.destination_airport_id
+                JOIN airlines air ON fr.airline_id = air.id
+                JOIN aircraft craft ON craft.id = fs.aircraft_id
+                WHERE fs.date_departure = '${FORMATTED_DATE}'
+                  AND a_orig.iata = '${origin}'
+                  AND a_dest.iata = '${destination}'
+            "
+            
+            RESULT=$(mysql_query -e "$QUERY")
+            
+            echo ""
+            if [ $(echo "$RESULT" | wc -l) -gt 1 ]; then
+                print_color $YELLOW "Flight Results:"
+                echo "$RESULT" | column -t -s $'\t'
+                LAST_QUERY_RESULT="$RESULT"
+            else
+                print_color $YELLOW "No flights found for this route and date."
+            fi
+            echo ""
+        
+        # Variation 2 & 3: Need to distinguish between class filter and airline filter for 5 args
+        elif [ $num_args -eq 5 ]; then
+            # Check if this is class filter (AN <origin> <destination> <date> <class>)
+            # or airline filter (AN <date> <origin> <destination> <airline>)
+            # Distinguish by checking if 4th arg is a valid class (F/C/Y) or if 2nd arg is a date format
+            
+            potential_date="${args[1]}"
+            potential_class="${args[4]}"
+            
+            # If first param (after AN) looks like a date (MonthDD), treat as airline filter
+            if [[ $potential_date =~ ^[A-Za-z]{3}[0-9]{2}$ ]]; then
+                # This is Variation 3: AN <date> <origin> <destination> <airline>
+                date_input="${args[1]}"
+                origin="${args[2]^^}"
+                destination="${args[3]^^}"
+                airline="${args[4]^^}"
+                
+                # Validate departure date format (MonthDD)
+                if [[ ! $date_input =~ ^[A-Za-z]{3}[0-9]{2}$ ]]; then
+                    print_color $RED "Error: Departure date must be in MonthDD format (e.g., Oct10 for October 10)."
+                    continue
+                fi
+
+                # Extract month and day
+                month_str=${date_input:0:3}
+                DAY=${date_input:3:2}
+
+                if ! FORMATTED_DATE=$(date -d "${month_str} ${DAY} 2025" +%Y-%m-%d 2>/dev/null); then
+                    print_color $RED "Error: Invalid date. Please check the month abbreviation and day."
+                    continue
+                fi
+
+                # Get airport names
+                origin_name=$(mysql_query -N -B -e "SELECT airport_name FROM airports WHERE iata = '${origin}' LIMIT 1;")
+                if [ -z "$origin_name" ]; then
+                    print_color $RED "Error: Origin airport '$origin' not found."
+                    continue
+                fi
+
+                destination_name=$(mysql_query -N -B -e "SELECT airport_name FROM airports WHERE iata = '${destination}' LIMIT 1;")
+                if [ -z "$destination_name" ]; then
+                    print_color $RED "Error: Destination airport '$destination' not found."
+                    continue
+                fi
+
+                print_color $BLUE "Origin: $origin_name ($origin)"
+                print_color $BLUE "Destination: $destination_name ($destination)"
+                print_color $BLUE "Airline: $airline"
+
+                QUERY="
+                    SELECT 
+                        fs.date_departure AS 'Date Departure',
+                        fs.time_departure AS 'Time',
+                        air.airline AS 'Airline',
+                        craft.model AS 'Aircraft',
+                        fs.id AS 'Flight No.'
+                    FROM flight_schedules fs
+                    JOIN flight_routes fr ON fs.flight_route_id = fr.id   
+                    JOIN airports a_orig ON a_orig.id = fr.origin_airport_id
+                    JOIN airports a_dest ON a_dest.id = fr.destination_airport_id
+                    JOIN airlines air ON fr.airline_id = air.id
+                    JOIN aircraft craft ON craft.id = fs.aircraft_id
+                    WHERE fs.date_departure = '${FORMATTED_DATE}'
+                      AND a_orig.iata = '${origin}'
+                      AND a_dest.iata = '${destination}'
+                      AND air.iata = '${airline}'
+                "
+
+                RESULT=$(mysql_query -e "$QUERY")
+
+                echo ""
+                if [ $(echo "$RESULT" | wc -l) -gt 1 ]; then
+                    print_color $YELLOW "Flight Results:"
+                    echo "$RESULT" | column -t -s $'\t'
+                    LAST_QUERY_RESULT="$RESULT"
+                else
+                    print_color $YELLOW "No flights found for this route, date, and airline."
+                fi
+                echo ""
+            
+            # Otherwise, treat as Variation 2: AN <origin> <destination> <date> <class>
+            elif [[ $potential_class =~ ^[FfCcYy]$ ]]; then
+                origin="${args[1]^^}"
+                destination="${args[2]^^}"
+                date_input="${args[3]}"
+                class="${potential_class^^}"
+                
+                # Validate date format (MMMDD or DDMON)
+                if [[ $date_input =~ ^[A-Za-z]{3}[0-9]{2}$ ]]; then
+                    # MonthDD format
+                    month_str=${date_input:0:3}
+                    DAY=${date_input:3:2}
+                    if ! FORMATTED_DATE=$(date -d "${month_str} ${DAY} 2025" +%Y-%m-%d 2>/dev/null); then
+                        print_color $RED "Error: Invalid date. Please check the month abbreviation and day."
+                        continue
+                    fi
+                elif [[ $date_input =~ ^[0-9]{2}[A-Za-z]{3}$ ]]; then
+                    # DDMON format
+                    DAY=${date_input:0:2}
+                    month_str=${date_input:2:3}
+                    if ! FORMATTED_DATE=$(date -d "${month_str} ${DAY} 2025" +%Y-%m-%d 2>/dev/null); then
+                        print_color $RED "Error: Invalid date. Please check the day and month abbreviation."
+                        continue
+                    fi
+                else
+                    print_color $RED "Error: Date must be in MonthDD or DDMON format (e.g., Oct10 or 10OCT)."
+                    continue
+                fi
+                
+                # Get airport names
+                origin_name=$(mysql_query -N -B -e "SELECT airport_name FROM airports WHERE iata = '${origin}' LIMIT 1;")
+                if [ -z "$origin_name" ]; then
+                    print_color $RED "Error: Origin airport '$origin' not found."
+                    continue
+                fi
+                
+                destination_name=$(mysql_query -N -B -e "SELECT airport_name FROM airports WHERE iata = '${destination}' LIMIT 1;")
+                if [ -z "$destination_name" ]; then
+                    print_color $RED "Error: Destination airport '$destination' not found."
+                    continue
+                fi
+                
+                # Map class code to full name and price column
+                case "$class" in
+                    F)
+                        class_name="First Class"
+                        price_column="fs.price_f"
+                        ;;
+                    C)
+                        class_name="Business Class"
+                        price_column="fs.price_c"
+                        ;;
+                    Y)
+                        class_name="Economy Class"
+                        price_column="fs.price_y"
+                        ;;
+                esac
+                
+                print_color $BLUE "Origin: $origin_name ($origin)"
+                print_color $BLUE "Destination: $destination_name ($destination)"
+                print_color $BLUE "Date: $FORMATTED_DATE"
+                print_color $BLUE "Class: $class_name"
+                
+                QUERY="
+                    SELECT 
+                        fs.date_departure AS 'Date Departure',
+                        fs.time_departure AS 'Time',
+                        air.airline AS 'Airline',
+                        craft.model AS 'Aircraft',
+                        $price_column AS 'Price',
+                        CONCAT(
+                            (SELECT COUNT(*) FROM seats WHERE flight_schedule_id = fs.id AND class = '$class' AND status = 'available'),
+                            '/',
+                            (SELECT COUNT(*) FROM seats WHERE flight_schedule_id = fs.id AND class = '$class')
+                        ) AS 'Available Seats',
+                        fs.id AS 'Flight No.'
+                    FROM flight_schedules fs
+                    JOIN flight_routes fr ON fs.flight_route_id = fr.id   
+                    JOIN airports a_orig ON a_orig.id = fr.origin_airport_id
+                    JOIN airports a_dest ON a_dest.id = fr.destination_airport_id
+                    JOIN airlines air ON fr.airline_id = air.id
+                    JOIN aircraft craft ON craft.id = fs.aircraft_id
+                    WHERE fs.date_departure = '${FORMATTED_DATE}'
+                      AND a_orig.iata = '${origin}'
+                      AND a_dest.iata = '${destination}'
+                "
+                
+                RESULT=$(mysql_query -e "$QUERY")
+                
+                echo ""
+                if [ $(echo "$RESULT" | wc -l) -gt 1 ]; then
+                    print_color $YELLOW "Flight Results ($class_name):"
+                    echo "$RESULT" | column -t -s $'\t'
+                    LAST_QUERY_RESULT="$RESULT"
+                else
+                    print_color $YELLOW "No flights found for this route, date, and class."
+                fi
+                echo ""
+            else
+                # Check if this might be Variation 4: AN <origin> <destination> <date_from> <date_to> (date range)
+                date_from="${args[3]}"
+                date_to="${args[4]}"
+                
+                # Check if both look like dates
+                if [[ ($date_from =~ ^[A-Za-z]{3}[0-9]{2}$ || $date_from =~ ^[0-9]{2}[A-Za-z]{3}$) && 
+                      ($date_to =~ ^[A-Za-z]{3}[0-9]{2}$ || $date_to =~ ^[0-9]{2}[A-Za-z]{3}$) ]]; then
+                    
+                    # This is Variation 4: AN <origin> <destination> <date_from> <date_to>
+                    origin="${args[1]^^}"
+                    destination="${args[2]^^}"
+                    
+                    # Parse date_from
+                    if [[ $date_from =~ ^[A-Za-z]{3}[0-9]{2}$ ]]; then
+                        month_str_from=${date_from:0:3}
+                        day_from=${date_from:3:2}
+                    else
+                        day_from=${date_from:0:2}
+                        month_str_from=${date_from:2:3}
+                    fi
+                    
+                    if ! FORMATTED_DATE_FROM=$(date -d "${month_str_from} ${day_from} 2025" +%Y-%m-%d 2>/dev/null); then
+                        print_color $RED "Error: Invalid from-date. Please check the format."
+                        continue
+                    fi
+                    
+                    # Parse date_to
+                    if [[ $date_to =~ ^[A-Za-z]{3}[0-9]{2}$ ]]; then
+                        month_str_to=${date_to:0:3}
+                        day_to=${date_to:3:2}
+                    else
+                        day_to=${date_to:0:2}
+                        month_str_to=${date_to:2:3}
+                    fi
+                    
+                    if ! FORMATTED_DATE_TO=$(date -d "${month_str_to} ${day_to} 2025" +%Y-%m-%d 2>/dev/null); then
+                        print_color $RED "Error: Invalid to-date. Please check the format."
+                        continue
+                    fi
+                    
+                    # Validate date range
+                    if [[ "$FORMATTED_DATE_FROM" > "$FORMATTED_DATE_TO" ]]; then
+                        print_color $RED "Error: From-date must be before or equal to to-date."
+                        continue
+                    fi
+                    
+                    # Get airport names
+                    origin_name=$(mysql_query -N -B -e "SELECT airport_name FROM airports WHERE iata = '${origin}' LIMIT 1;")
+                    if [ -z "$origin_name" ]; then
+                        print_color $RED "Error: Origin airport '$origin' not found."
+                        continue
+                    fi
+                    
+                    destination_name=$(mysql_query -N -B -e "SELECT airport_name FROM airports WHERE iata = '${destination}' LIMIT 1;")
+                    if [ -z "$destination_name" ]; then
+                        print_color $RED "Error: Destination airport '$destination' not found."
+                        continue
+                    fi
+                    
+                    print_color $BLUE "Origin: $origin_name ($origin)"
+                    print_color $BLUE "Destination: $destination_name ($destination)"
+                    print_color $BLUE "Date Range: $FORMATTED_DATE_FROM to $FORMATTED_DATE_TO"
+                    
+                    QUERY="
+                        SELECT 
+                            fs.date_departure AS 'Date Departure',
+                            fs.time_departure AS 'Time',
+                            air.airline AS 'Airline',
+                            craft.model AS 'Aircraft',
+                            fs.id AS 'Flight No.'
+                        FROM flight_schedules fs
+                        JOIN flight_routes fr ON fs.flight_route_id = fr.id   
+                        JOIN airports a_orig ON a_orig.id = fr.origin_airport_id
+                        JOIN airports a_dest ON a_dest.id = fr.destination_airport_id
+                        JOIN airlines air ON fr.airline_id = air.id
+                        JOIN aircraft craft ON craft.id = fs.aircraft_id
+                        WHERE fs.date_departure BETWEEN '${FORMATTED_DATE_FROM}' AND '${FORMATTED_DATE_TO}'
+                          AND a_orig.iata = '${origin}'
+                          AND a_dest.iata = '${destination}'
+                        ORDER BY fs.date_departure, fs.time_departure
+                    "
+                    
+                    RESULT=$(mysql_query -e "$QUERY")
+                    
+                    echo ""
+                    if [ $(echo "$RESULT" | wc -l) -gt 1 ]; then
+                        print_color $YELLOW "Flight Results (Date Range):"
+                        echo "$RESULT" | column -t -s $'\t'
+                        LAST_QUERY_RESULT="$RESULT"
+                    else
+                        print_color $YELLOW "No flights found for this route and date range."
+                    fi
+                    echo ""
+                else
+                    print_color $RED "Error: Invalid AN command format."
+                    print_color $YELLOW "Usage: AN <origin> <destination> <date> [class]"
+                    print_color $YELLOW "   or: AN <date> <origin> <destination> <airline>"
+                    print_color $YELLOW "   or: AN <origin> <destination> <date_from> <date_to>"
+                    continue
+                fi
         fi
-
-        # Extract month and day
-        month_str=${param1:0:3}
-        DAY=${param1:3:2}
-
-        if ! FORMATTED_DATE=$(date -d "${month_str} ${DAY} 2025" +%Y-%m-%d 2>/dev/null); then
-            print_color $RED "Error: Invalid date. Please check the month abbreviation and day."
+        
+        # Variation 5: AN <origin1> <dest1> <date1> <origin2> <dest2> <date2> - Multi-city search
+        elif [ $num_args -eq 7 ]; then
+            origin1="${args[1]^^}"
+            destination1="${args[2]^^}"
+            date_input1="${args[3]}"
+            origin2="${args[4]^^}"
+            destination2="${args[5]^^}"
+            date_input2="${args[6]}"
+            
+            # Parse first date
+            if [[ $date_input1 =~ ^[A-Za-z]{3}[0-9]{2}$ ]]; then
+                month_str_1=${date_input1:0:3}
+                day_1=${date_input1:3:2}
+            elif [[ $date_input1 =~ ^[0-9]{2}[A-Za-z]{3}$ ]]; then
+                day_1=${date_input1:0:2}
+                month_str_1=${date_input1:2:3}
+            else
+                print_color $RED "Error: First date must be in MonthDD or DDMON format."
+                continue
+            fi
+            
+            if ! FORMATTED_DATE_1=$(date -d "${month_str_1} ${day_1} 2025" +%Y-%m-%d 2>/dev/null); then
+                print_color $RED "Error: Invalid first date. Please check the format."
+                continue
+            fi
+            
+            # Parse second date
+            if [[ $date_input2 =~ ^[A-Za-z]{3}[0-9]{2}$ ]]; then
+                month_str_2=${date_input2:0:3}
+                day_2=${date_input2:3:2}
+            elif [[ $date_input2 =~ ^[0-9]{2}[A-Za-z]{3}$ ]]; then
+                day_2=${date_input2:0:2}
+                month_str_2=${date_input2:2:3}
+            else
+                print_color $RED "Error: Second date must be in MonthDD or DDMON format."
+                continue
+            fi
+            
+            if ! FORMATTED_DATE_2=$(date -d "${month_str_2} ${day_2} 2025" +%Y-%m-%d 2>/dev/null); then
+                print_color $RED "Error: Invalid second date. Please check the format."
+                continue
+            fi
+            
+            # Validate that second flight is after or equal to first flight
+            if [[ "$FORMATTED_DATE_2" < "$FORMATTED_DATE_1" ]]; then
+                print_color $RED "Error: Second flight date must be after first flight date."
+                continue
+            fi
+            
+            # Get airport names for segment 1
+            origin1_name=$(mysql_query -N -B -e "SELECT airport_name FROM airports WHERE iata = '${origin1}' LIMIT 1;")
+            if [ -z "$origin1_name" ]; then
+                print_color $RED "Error: Origin airport '$origin1' not found."
+                continue
+            fi
+            
+            destination1_name=$(mysql_query -N -B -e "SELECT airport_name FROM airports WHERE iata = '${destination1}' LIMIT 1;")
+            if [ -z "$destination1_name" ]; then
+                print_color $RED "Error: Destination airport '$destination1' not found."
+                continue
+            fi
+            
+            # Get airport names for segment 2
+            origin2_name=$(mysql_query -N -B -e "SELECT airport_name FROM airports WHERE iata = '${origin2}' LIMIT 1;")
+            if [ -z "$origin2_name" ]; then
+                print_color $RED "Error: Origin airport '$origin2' not found."
+                continue
+            fi
+            
+            destination2_name=$(mysql_query -N -B -e "SELECT airport_name FROM airports WHERE iata = '${destination2}' LIMIT 1;")
+            if [ -z "$destination2_name" ]; then
+                print_color $RED "Error: Destination airport '$destination2' not found."
+                continue
+            fi
+            
+            print_color $CYAN "========== Segment 1 =========="
+            print_color $BLUE "Origin: $origin1_name ($origin1)"
+            print_color $BLUE "Destination: $destination1_name ($destination1)"
+            print_color $BLUE "Date: $FORMATTED_DATE_1"
+            
+            QUERY_1="
+                SELECT 
+                    fs.date_departure AS 'Date Departure',
+                    fs.time_departure AS 'Time',
+                    air.airline AS 'Airline',
+                    craft.model AS 'Aircraft',
+                    fs.id AS 'Flight No.'
+                FROM flight_schedules fs
+                JOIN flight_routes fr ON fs.flight_route_id = fr.id   
+                JOIN airports a_orig ON a_orig.id = fr.origin_airport_id
+                JOIN airports a_dest ON a_dest.id = fr.destination_airport_id
+                JOIN airlines air ON fr.airline_id = air.id
+                JOIN aircraft craft ON craft.id = fs.aircraft_id
+                WHERE fs.date_departure = '${FORMATTED_DATE_1}'
+                  AND a_orig.iata = '${origin1}'
+                  AND a_dest.iata = '${destination1}'
+            "
+            
+            RESULT_1=$(mysql_query -e "$QUERY_1")
+            
+            echo ""
+            if [ $(echo "$RESULT_1" | wc -l) -gt 1 ]; then
+                print_color $YELLOW "Flight Results (Segment 1):"
+                echo "$RESULT_1" | column -t -s $'\t'
+            else
+                print_color $RED "No flights found for segment 1."
+                continue
+            fi
+            echo ""
+            
+            print_color $CYAN "========== Segment 2 =========="
+            print_color $BLUE "Origin: $origin2_name ($origin2)"
+            print_color $BLUE "Destination: $destination2_name ($destination2)"
+            print_color $BLUE "Date: $FORMATTED_DATE_2"
+            
+            QUERY_2="
+                SELECT 
+                    fs.date_departure AS 'Date Departure',
+                    fs.time_departure AS 'Time',
+                    air.airline AS 'Airline',
+                    craft.model AS 'Aircraft',
+                    fs.id AS 'Flight No.'
+                FROM flight_schedules fs
+                JOIN flight_routes fr ON fs.flight_route_id = fr.id   
+                JOIN airports a_orig ON a_orig.id = fr.origin_airport_id
+                JOIN airports a_dest ON a_dest.id = fr.destination_airport_id
+                JOIN airlines air ON fr.airline_id = air.id
+                JOIN aircraft craft ON craft.id = fs.aircraft_id
+                WHERE fs.date_departure = '${FORMATTED_DATE_2}'
+                  AND a_orig.iata = '${origin2}'
+                  AND a_dest.iata = '${destination2}'
+            "
+            
+            RESULT_2=$(mysql_query -e "$QUERY_2")
+            
+            echo ""
+            if [ $(echo "$RESULT_2" | wc -l) -gt 1 ]; then
+                print_color $YELLOW "Flight Results (Segment 2):"
+                echo "$RESULT_2" | column -t -s $'\t'
+                # Store only the second result for seat selection
+                LAST_QUERY_RESULT="$RESULT_2"
+            else
+                print_color $RED "No flights found for segment 2."
+                continue
+            fi
+            echo ""
+        else
+            print_color $RED "Error: Invalid AN command format."
+            print_color $YELLOW "Usage: AN <origin> <destination> <date> [class]"
+            print_color $YELLOW "   or: AN <date> <origin> <destination> <airline>"
+            print_color $YELLOW "   or: AN <origin> <destination> <date_from> <date_to>"
+            print_color $YELLOW "   or: AN <origin1> <dest1> <date1> <origin2> <dest2> <date2>"
             continue
-        fi
-
-        # Get airport names
-        origin_name=$(
-            mysql_query -N -B -e \
-            "SELECT airport_name FROM airports WHERE iata = '${origin_code}' LIMIT 1;"
-        )
-
-        print_color $BLUE "Origin: $origin_name"
-
-        destination_name=$(
-            mysql_query -N -B -e \
-            "SELECT airport_name FROM airports WHERE iata = '${destination_code}' LIMIT 1;"
-        )
-
-        print_color $BLUE "Destination: $destination_name"
-
-        QUERY="
-            SELECT 
-                fs.date_departure AS 'Date Departure',
-                fs.time_departure AS 'Time',
-                air.airline AS 'Airline',
-                craft.model AS 'Aircraft',
-                fs.id AS 'Flight No.'
-            FROM flight_schedules fs
-            JOIN flight_routes fr ON fs.flight_route_id = fr.id   
-            JOIN airports a_orig ON a_orig.id = fr.origin_airport_id
-            JOIN airports a_dest ON a_dest.id = fr.destination_airport_id
-            JOIN airlines air ON fr.airline_id = air.id
-            JOIN aircraft craft ON craft.id = fs.aircraft_id
-            WHERE fs.date_departure = '${FORMATTED_DATE}'
-              AND a_orig.iata = '${origin_code}'
-              AND a_dest.iata = '${destination_code}'
-              AND air.iata = '${airline_iata}'
-        "
-
-        RESULT=$(mysql_query -e "$QUERY")
-
-        echo ""
-        print_color $YELLOW "Flight Results:"
-        echo "$RESULT" | column -t -s $'\t'
-        echo ""
-
-        if [ $(echo "$RESULT" | wc -l) -gt 1 ]; then
-            LAST_QUERY_RESULT="$RESULT"
         fi
     
     # Add Baggage command
-    elif [[ "${flight_command^^}" = "SSR" && "${param1^^}" = "BAGO" ]]; then
-        ssr_ticket_id="$origin_code"
-        ssr_weight="$destination_code"
-        ssr_pieces="$airline_iata"
-        if [ -z "$ssr_ticket_id" ] || [ -z "$ssr_weight" ] || [ -z "$ssr_pieces" ]; then
+    elif [[ "${flight_command^^}" = "SSR" && "${args[1]^^}" = "BAGO" ]]; then
+        if [ ${#args[@]} -lt 5 ]; then
             print_color $RED "Usage: SSR BAGO <ticket_id> <weight> <pieces>"
             continue
         fi
+        ssr_ticket_id="${args[2]}"
+        ssr_weight="${args[3]}"
+        ssr_pieces="${args[4]}"
         # Parse weight
         if [[ $ssr_weight =~ ^([0-9]+)[Kk]$ ]]; then
             ssr_weight_val=${BASH_REMATCH[1]}
@@ -277,7 +734,8 @@ while true; do
                 continue
             fi
 
-            passenger_input="$param1 $origin_code $destination_code $airline_iata"
+            # Build passenger input from remaining args (skip command and number)
+            passenger_input="${args[@]:1}"
             passengers=($passenger_input)
             if [ ${#passengers[@]} -ne $SELECTED_NUM_SEATS ]; then
                 print_color $RED "Number of passengers does not match the number of seats ($SELECTED_NUM_SEATS)."
@@ -333,7 +791,7 @@ while true; do
     elif [ "${flight_command^^}" = "AP" ]; then
         # Add agency number
         if [ "$WAITING_FOR_AGENCY" = true ]; then
-            agency_number=$param1
+            agency_number="${args[1]}"
             if [[ ! $agency_number =~ ^[0-9]+$ ]]; then
                 print_color $RED "Invalid agency number. Must be digits."
                 continue
@@ -348,7 +806,7 @@ while true; do
             fi
         # Add customer/s number
         elif [ "$WAITING_FOR_CUSTOMER" = true ]; then
-            customer_number=$param1
+            customer_number="${args[1]}"
             if [[ ! $customer_number =~ ^[0-9]+$ ]]; then
                 print_color $RED "Invalid customer number. Must be digits."
                 continue
@@ -370,10 +828,10 @@ while true; do
         fi
     # Flight quotation command
     elif [ "${flight_command^^}" = "FQD" ]; then
-        fqd_origin="${param1^^}"
-        fqd_dest="${origin_code^^}"
-        fqd_param3="${destination_code^^}"
-        fqd_param4="${airline_iata^^}"
+        fqd_origin="${args[1]^^}"
+        fqd_dest="${args[2]^^}"
+        fqd_param3="${args[3]^^}"
+        fqd_param4="${args[4]^^}"
 
         # Determine round_trip and date based on parameters
         round_trip_value=0
@@ -503,7 +961,7 @@ while true; do
     
     # Void Ticket command
     elif [ "${flight_command^^}" = "TKV" ]; then
-        tkv_ticket_id="$param1"
+        tkv_ticket_id="${args[1]}"
         if [ -z "$tkv_ticket_id" ]; then
             print_color $RED "Error: TKV requires a ticket id."
             continue
@@ -534,7 +992,7 @@ while true; do
         print_color $GREEN "Ticket $tkv_ticket_id has been voided and seat is now available."
     # Refund Ticket command
     elif [ "${flight_command^^}" = "RFND" ]; then
-        rfnd_ticket_id="$param1"
+        rfnd_ticket_id="${args[1]}"
         if [ -z "$rfnd_ticket_id" ]; then
             print_color $RED "Error: RFND requires a ticket id."
             continue
@@ -568,8 +1026,8 @@ while true; do
 
     # Passenger List command
     elif [ "${flight_command^^}" = "DS" ]; then
-        ds_carrier_code="$param1"
-        ds_date="$origin_code"
+        ds_carrier_code="${args[1]}"
+        ds_date="${args[2]}"
         if [ -z "$ds_carrier_code" ] || [ -z "$ds_date" ]; then
             print_color $RED "Usage: DS <carrier_code> <date>"
             continue
